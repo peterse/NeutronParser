@@ -47,7 +47,7 @@ def test_serial(func, obj_lst, timer):
 #increment every member of a list by 1
 def parallel_func_1(val):
     return val + 1
-target_1 = range(10000000)
+target_1 = xrange(10000000)
 
 #Pythagorean theorem; single argument
 def parallel_func_2(tupl):

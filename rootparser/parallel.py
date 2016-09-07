@@ -4,7 +4,7 @@ from multiprocessing import Pool
 from multiprocessing import cpu_count
 from multiprocessing.dummy import Pool as ThreadPool
 
-from functools import partial
+#from functools import partial
 
 
 #TODO do we need a wrapper for many-argument functions? What is the model for parallelization over multiple arguments?

@@ -1,3 +1,5 @@
+"""Exceptions for modules in this specific library"""
+
 class ParallelError(Exception):
     def __init__(self, value):
         self.value = value

@@ -1,0 +1,4 @@
+- configure local git preferences
+- start rewriting parsers
+- structure for ROOT interface?
+- structure for I/O?
