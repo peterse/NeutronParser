@@ -1,0 +1,13 @@
+-configure local git preferences
+-Structure for new parsers
+   (list = map(func, list))
+-structure for ROOT interfacing  -
+   -2x files open?
+   -interface for current ttree
+-structure for I/O:
+   -input file for setting preferences?
+
+-testable tree
+   -regression tests
+
+-

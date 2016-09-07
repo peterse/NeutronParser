@@ -339,28 +339,6 @@ class MC_N_event:
 			#print evt_id
 		return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=self.quiet) #(ID, name)
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	def __get_4vecs(self, event, N_parts):
-	#Return a list of tuples whose position corresponds to part_num
-
-		#NOTE: [[0,0,0,0]]*N_parts is a list of N-parts copies of [0,0,0,0], the correct format is below:
-		my_4vecs = [ [0,0,0,0] for i in range(N_parts)]
-		vals = [0]*N_parts
-		#populate Momenta
-		for dim_i, dim in enumerate(["x", "y", "z"]):
-			dimleaf = "mc_FSPartP" + dim
-			P_obj = self.current_tree.GetLeaf(dimleaf)
-			#print my_4vecs
-			for part_num in range(len(my_4vecs)):
-				my_4vecs[part_num][dim_i+1] = P_obj.GetValue(part_num)
-
-		#populate Energies
-		E_obj = self.current_tree.GetLeaf("mc_FSPartE")
-		for part_num in range(N_parts):
-			my_4vecs[part_num][0] = E_obj.GetValue(part_num)
-		#print my_4vecs
-		my_4vecs = [tuple(lst) for lst in my_4vecs]
-		return my_4vecs #(E, px, py, pz)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	def get_P(self, recon_dct):

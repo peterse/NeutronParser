@@ -9,6 +9,8 @@ lookup_dct = {
             "MC_N_PART": "mc_nFSpart",
             "MC_PART_XYZ_PREFIX": "mc_FSPartP",
             "MC_PART_E": "mc_FSPartE",
+            "MC_PART_ID": "mc_FSPartPDG",
+            "MC_INCOMING_PART": "mc_incoming",
             "DATA_PART_E": "derp",
             "DATA_PART_XYZ_PREFIX": "derp2"
 
