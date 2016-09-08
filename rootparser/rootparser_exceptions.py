@@ -15,7 +15,5 @@ class RootFileError(Exception):
         return repr(self.value)
 
 if __name__ == "__main__":
-
-
     #raise ParallelError("parallel error")
     raise RootFileError("RootFileError")
