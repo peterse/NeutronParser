@@ -4,6 +4,7 @@ conventions for finding specific values in the tree
 """
 
 import rootpy.ROOT as ROOT
+import rootpy
 #import ROOT
 import os
 #FIXME: Why can't I import exceptions??
@@ -41,12 +42,11 @@ class RootFileManager:
 
         obj_name = obj_handle.GetName()
         obj_type = type(obj_handle)
-        print obj_type
-        print obj_name
+
         #keep track of repeated names
         used_names = []
         #Descend into lower directories if necessary
-        if obj_type is ROOT.TFile or obj_type is ROOT.TDirectoryFile:
+        if obj_type is rootpy.io.file.File:
             for sub in obj_handle.GetListOfKeys():
                 #Deal with trees that are named the same
                 if sub.GetName() in used_names:
@@ -59,7 +59,7 @@ class RootFileManager:
                     sub = obj_handle.Get(sub.GetName())
                 self.get_list_of_trees(sub)
         #Grab current tree and exit
-        elif obj_type is ROOT.TTree:
+        elif obj_type is rootpy.tree.tree.Tree:
             self.list_of_trees.append(obj_handle)
             return
 
