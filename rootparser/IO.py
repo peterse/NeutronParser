@@ -3,7 +3,8 @@ IO.py - supports I/O for parsing rootfiles, particularly naming
 conventions for finding specific values in the tree
 """
 
-import ROOT
+import rootpy.ROOT as ROOT
+#import ROOT
 import os
 #FIXME: Why can't I import exceptions??
 
@@ -40,7 +41,8 @@ class RootFileManager:
 
         obj_name = obj_handle.GetName()
         obj_type = type(obj_handle)
-
+        print obj_type
+        print obj_name
         #keep track of repeated names
         used_names = []
         #Descend into lower directories if necessary
