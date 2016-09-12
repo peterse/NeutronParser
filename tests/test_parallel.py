@@ -22,17 +22,31 @@ import event
 import IO
 import rootpy.ROOT as ROOT
 
+#Regenerating our file...
+from generate_dummy_root import generate
+
 # # # # # Test-specific filenames # # # #
 mc_filename = "MC_dummy.root"
+def refresh_testfile():
+    generate()
+    dummyIO = IO.RootIOManager(mc_filename)
+    trees = dummyIO.list_of_trees
+    tree = trees[0]
+    tree.GetEvent()
+    time.sleep(1)
+    return
+
 #File managers for testing parallel returns
-dummyIO = IO.RootIOManager(mc_filename)
-trees = dummyIO.list_of_trees
-tree = trees[0]
-tree.GetEvent()
+global_f = None #global file handle, assigned in file managing contexts
+tree = None #global tree handle
+refresh_testfile()
+
 
 #Boot the thread manager with the current tree
 Parallel = ThreadManager()
-Parallel.queue.put(tree)
+
+#timing
+Time = Timer()
 
 #Testing parallelization using processes
 def test_CPU_bound(func, obj_lst, timer):
@@ -89,52 +103,58 @@ def parallel_func_3(obj):
     return np.sqrt(summ)
 target_3 = [ ArrayObject() for i in range(10)]
 
-#Attempt to clash access methods for a given tree
-#call GetEvent, then show a value now and 3 s later
 
-def parallel_access(pair):
-    index = pair[0]
-    tree_handle = pair[1]
+# def parallel_cleanup():
+#     #Find an index of pids_finished to set true, then attempt to closeout the queue
+#     for i, b in enumerate(Parallel.pids_finished):
+#         if b == False:
+#             Parallel.pids_finished[i] = True
+#             break
+#     print Parallel.pids_finished
+#     if all(Parallel.pids_finished):
+#         while not Parallel.queue.empty():
+#             Parallel.queue.get()
 
-    tree_handle.GetEvent(index)
-    #Access immediately after getting the event
-    t1 = tree_handle.GetLeaf("event").GetValue()
-    print "%s: Accessing event %i" % (index, t1)
 
-    #sleep for a short random amount of time (do not preserve order among threads)
-    time.sleep(random.randint(1,3))
+#Feeling out proper IO handling for fastest parallel file processing
 
-    #Access the tree again; see if context is saved
-    t2 = tree_handle.GetLeaf("event").GetValue()
-    print "%s: Accessing event %i" % (index, t2)
-    print (t1, t2)
-    return (t1, t2)
+def tree_access(index):
+    #This will be wrapped to avoid >1 arguments
+    try:
+        tree.GetEvent(index)
+        t1 = tree.GetLeaf("event").GetValue()
+    except TypeError:
+        sys.exit("ERROR: Bad read in ROOT file")
+    else:
+        return t1
+
+def tree_access_2(index):
+    global_f.Get("test").GetEvent(index)
+    t1 = global_f.Get("test").GetLeaf("event").GetValue()
+    return t1
 
 def parallel_access_2(index):
 
     #This will be wrapped to avoid >1 arguments
-    tree = Parallel.queue.get()
     tree.GetEvent(index)
     #Access immediately after getting the event
+    #print "Accessing index %i #1" % index
     t1 = tree.GetLeaf("event").GetValue()
-    Parallel.queue.put(tree)
     time.sleep(random.randint(1,3))
-    Parallel.queue.get(tree)
-    t2 = tree_handle.GetLeaf("event").GetValue()
+    #print "Accessing index %i #2" % index
+    t2 = tree.GetLeaf("event").GetValue()
+    #print "Queue putd (#2) (index %i)" % index
+
     return (t1, t2)
 
-#wrap the parallel access routine to reference our global tree
-def parallel_access_sametree(val):
-    return parallel_access_2(val, tree)
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 class ParallelTest(unittest.TestCase):
 
     def test_IO_CPU_serial_speeds(self):
 
         return #skip...
-        #boot the timer
-        Time = Timer()
-
+        #grab the timer
+        global Time
         #Run the test
         for func, obj in [(parallel_func_1, target_1), (parallel_func_2, target_2)]:
 
@@ -166,16 +186,55 @@ class ParallelTest(unittest.TestCase):
         #Parallel.runevent.get_4vec_mc
 
     def test_parallel_GetEvent_collision(self):
+        #skip
+        return
         global tree
-
         #attempt to access tree events in parallel
-        N = 3
-        #obj_arr = zip(range(N), [tree for i in range(N)])
-        obj_arr = zip(range(N), [tree]*N)
-        #tree.GetEvent(0)
-        results = Parallel.run(parallel_access_2, obj_arr )
-        print results
+        N = 80
+        #array of indices to access
+        obj_arr = range(N)
+        out = Parallel.run(parallel_access_2, obj_arr)
+        for pair in out:
+            self.assertEqual(pair[0], pair[1])
+        return
 
+    def test_TTreeIO_timing(self):
+        global Time, tree
+        N_grab = 20
+        N_entries = 1000000
 
+        func = tree_access
+
+        entries = range(N_entries)
+
+        #test many serial accesses
+        # Time.start("serial IO")
+        # for i in range(N_grab):
+        #     sp = Parallel.run(func, entries, ParallelPool=None)
+        # Time.end()
+        # refresh_testfile()
+        #
+        # Time.start("thread-parallel IO")
+        # for i in range(N_grab):
+        #     tp = Parallel.run(func, entries, ParallelPool=ThreadPool)
+        # Time.end()
+        # refresh_testfile()
+
+        for i in range(N_grab):
+            Time.start("process-parallel IO trial %i" % (i+1) )
+            pp = Parallel.run(tree_access, entries, ParallelPool=Pool)
+            Time.end()
+            refresh_testfile()
+        return
+
+        print pp == sp
+        print tp == sp
+        for i, val in enumerate(sp):
+            if val != tp[i]:
+                print i, val, tp[i]
+            if val != pp[i]:
+                print i, val, pp[i]
 if __name__ == "__main__":
+    #enter read only context
+    #print test_parallel_GetEvent_collision()
     unittest.main()

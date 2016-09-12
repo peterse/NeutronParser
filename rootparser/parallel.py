@@ -16,36 +16,55 @@ PARALLEL_POOL = Pool
 THREADING = True # do we want to implement threading?
 
 #TODO do we need a wrapper for many-argument functions? What is the model for parallelization over multiple arguments?
+
+
+#Parallel test #2 - lock instead of queue
+#A global lock is inherited by spawned processes instead of pickled
+lock = None
+
 class ThreadManager:
     def __init__(self):
         #A shared queue to be accessed as needed by external functions
-        self.queue = Queue()
+        #self.queue = Queue()
+        self.count = 0
 
-    def my_queue(self):
-        return self.queue
+    #for future use?
+    @staticmethod
+    def init_lock(L):
+        global lock
+        lock = L
 
-    def run(self, func, target, ParallelPool=PARALLEL_POOL, processes=None):
+    def run(self, func, target, ParallelPool=PARALLEL_POOL, n_processes=None):
+        #strictly serial
+        if ParallelPool == None:
+            return map(func, target)
+
+
         #Apply func to each object in target, launching parallel processes
         pool = ParallelPool()
 
-        if processes == None:
-            processes = cpu_count()
+        if n_processes == None:
+            n_processes = cpu_count()
         #Initialize a team of workers depending on the concurrency model
         if type(pool) is multiprocessing.pool.Pool:
+            #Initialize the current function by providing it the queue
+            #for locks - totally serialized code
+            #lock = multiprocessing.Lock()
+            #pool = ParallelPool(processes, initializer=self.init_lock, initargs=(lock, ))
 
-            #! ! ! !! 
-            pool = ParallelPool(processes, (self.queue,))
+            pool = ParallelPool(processes=n_processes)
         elif type(pool) is multiprocessing.pool.ThreadPool:
-            pool = ParallelPool(processes)
+            pool = ParallelPool(n_processes)
         else:
             raise ParallelError("RunParallel received bad pool specification")
 
+
         result = pool.map(func, target)
-        #closeout
+        #closeout and wait for forks to rejoin main thread before proceeding
         pool.close()
         pool.join()
-
         return result
+
 
 
 
@@ -93,6 +112,8 @@ def f(q):
 def main():
     #cool features of multiprocessing?
     print "number of CPUs: %i" % cpu_count()
+    #For future reference: Pool.map is memory intensive, Pool.imap is
+
     # for y,z in zip(range(10),range(10)):
     #     print partial(do_thing, 5)(y,z)
     Parallel = ThreadManager()
