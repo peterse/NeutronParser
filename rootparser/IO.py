@@ -77,7 +77,7 @@ class RootIOManager:
     def __init__(self, filename):
 
         self.filename = filename
-        self.file_manager = RootFileManager(self.filename)
+        self.file_manager = RootFileManager(filename)
 
         self.list_of_trees = self.file_manager.get_list_of_trees()
 

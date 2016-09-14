@@ -10,10 +10,15 @@ import time
 from parallel import ThreadManager
 import numpy as np
 from functools import partial
-
 #For multiprocessing
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
+
+#Errors and logging
+from rootparser_exceptions import ChildThreadError
+import rootparser_exceptions #loggin config
+
+
 
 #For applying different tests
 import random
@@ -23,30 +28,27 @@ import IO
 import rootpy.ROOT as ROOT
 
 #Regenerating our file...
-from generate_dummy_root import generate
+import maketestfiles as testfile
 
-# # # # # Test-specific filenames # # # #
-mc_filename = "MC_dummy.root"
-def refresh_testfile():
-    generate()
-    dummyIO = IO.RootIOManager(mc_filename)
-    trees = dummyIO.list_of_trees
-    tree = trees[0]
-    tree.GetEvent()
-    time.sleep(1)
-    return
 
+# # # # GLOBAL OBJECTS # # # # #
 #File managers for testing parallel returns
-global_f = None #global file handle, assigned in file managing contexts
-tree = None #global tree handle
-refresh_testfile()
-
+#initialized at ParallelTest.__init__
+global_f = None #IO filehandle
+tree = None # tree handle
+dummyIO = None #IO file wrapper objecct
 
 #Boot the thread manager with the current tree
 Parallel = ThreadManager()
 
 #timing
 Time = Timer()
+
+# # # # # # #
+
+# # # GLOBAL FUNCTIONS # # # #
+#multiprocessing requires functions defined in global context
+#otherwise, 'cannot pickle' error is raised
 
 #Testing parallelization using processes
 def test_CPU_bound(func, obj_lst, timer):
@@ -103,30 +105,21 @@ def parallel_func_3(obj):
     return np.sqrt(summ)
 target_3 = [ ArrayObject() for i in range(10)]
 
-
-# def parallel_cleanup():
-#     #Find an index of pids_finished to set true, then attempt to closeout the queue
-#     for i, b in enumerate(Parallel.pids_finished):
-#         if b == False:
-#             Parallel.pids_finished[i] = True
-#             break
-#     print Parallel.pids_finished
-#     if all(Parallel.pids_finished):
-#         while not Parallel.queue.empty():
-#             Parallel.queue.get()
-
-
 #Feeling out proper IO handling for fastest parallel file processing
-
 def tree_access(index):
     #This will be wrapped to avoid >1 arguments
-    try:
-        tree.GetEvent(index)
-        t1 = tree.GetLeaf("event").GetValue()
-    except TypeError:
-        sys.exit("ERROR: Bad read in ROOT file")
-    else:
-        return t1
+    while True:
+        try:
+            tree.GetEvent(index)
+            t1 = tree.GetLeaf("event").GetValue()
+            return t1
+        except:
+            #print sys.exc_info()[0]
+            #There was a clash for access, take a nap!:
+            time.sleep(.001)
+
+        else:
+            return t1
 
 def tree_access_2(index):
     global_f.Get("test").GetEvent(index)
@@ -147,8 +140,45 @@ def parallel_access_2(index):
 
     return (t1, t2)
 
-#- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def recreate_testfile():
+    global dummyIO, tree
+    testfile.generate_MC()
+    dummyIO = IO.RootIOManager(testfile.MC_filename)
+    #grab the test-tree
+    tree = dummyIO.list_of_trees[0]
+    tree.GetEvent()
+    time.sleep(1)
+    return
+
+
+# # # # # # # # # # # # # # # # # # #
+
 class ParallelTest(unittest.TestCase):
+
+    #Overload the TestCase init; needs to be passed proper initialization args/kwargs
+    def __init__(self, *args, **kwargs):
+        super( ParallelTest, self).__init__(*args, **kwargs)
+        #refresh the testfile
+        #self.recreate_testfile()
+
+    #Recreate a rootfile that ~may~ have been corrupted
+
+    #Diagnostic to shot index, value that do not agree between lists
+    #Returns the index range of disagreement (start, end)
+    def lst_compare(self, a, b):
+
+        for i, val in enumerate(a):
+            #if no differences are found, the range is 0-length
+            start = -1
+            end = -1
+            if val != b[i]:
+                if start == -1:
+                    start = i
+                #save the most recent disagreement
+                end = i
+                #print i, val, b[i]
+        return start, end
+
 
     def test_IO_CPU_serial_speeds(self):
 
@@ -199,42 +229,101 @@ class ParallelTest(unittest.TestCase):
         return
 
     def test_TTreeIO_timing(self):
-        global Time, tree
+        return
+        global Time, tree, dummyIO
+        #5 trials for Accessing
         N_grab = 20
-        N_entries = 1000000
 
         func = tree_access
+        entries = range(testfile.filesize)
 
-        entries = range(N_entries)
 
-        #test many serial accesses
-        # Time.start("serial IO")
+        # #test many serial accesses
         # for i in range(N_grab):
+        #     Time.start("serial IO trial %i" % (i+1) )
         #     sp = Parallel.run(func, entries, ParallelPool=None)
-        # Time.end()
-        # refresh_testfile()
-        #
-        # Time.start("thread-parallel IO")
-        # for i in range(N_grab):
-        #     tp = Parallel.run(func, entries, ParallelPool=ThreadPool)
-        # Time.end()
-        # refresh_testfile()
+        #     Time.end()
+        #     self.assertEqual(sp, entries)
 
+        #FIXME: thread-parallel not working!
+        #Getting repeats of read entries; this may mean the pool.map is working improperly
+        # for i in range(N_grab):
+        #     Time.start("thread-parallel IO trial %i" % (i+1) )
+        #     tp = Parallel.run(func, entries, ParallelPool=ThreadPool)
+        #     Time.end()
+        #     stp = sorted(tp)
+        #     a, b = self.lst_compare(sorted(tp), entries)
+        #     print stp == entries
+        #     for val in stp:
+        #         if stp.count(val) >1:
+        #             print val
+        #     if stp != entries:
+        #         print len(stp), len(set(stp))
+
+                # for i, val in enumerate(stp):
+                #     if val not in set(stp):
+                #         print i, val, "not in set"
+                #     else:
+                #         entries.pop(i)
+                #     stp.pop(i)
+                # for i, val in enumerate(entries):
+                #     if val not in stp:
+                #         print i, val, "not in TP"
+                #     else:
+                #         stp[i] = -1
+                #     entries[i] = -1
+                #print stp[a-1], stp[a], stp[b], stp[b-1]
+                # for pair in zip(stp, entries):
+                #     if pair[0] != pair[1]:
+                #         print pair
+                #print stp
+                #print entries
+            #self.assertEqual(list(sorted(tp)), entries)
+
+        #Test process-parallel access
         for i in range(N_grab):
             Time.start("process-parallel IO trial %i" % (i+1) )
             pp = Parallel.run(tree_access, entries, ParallelPool=Pool)
             Time.end()
-            refresh_testfile()
+            self.assertEqual(entries, pp)
+            #temp = pp
+            #self.recreate_testfile()
         return
 
-        print pp == sp
-        print tp == sp
-        for i, val in enumerate(sp):
-            if val != tp[i]:
-                print i, val, tp[i]
-            if val != pp[i]:
-                print i, val, pp[i]
+    def test_event_fill(self):
+        #Test the Event.fill method, in series then in parallel
+        global tree, dummyIO
+        #Initialize an event generator fo rhe current tree
+        func = event.fill_event
+        evts = event.EventParser(0, testfile.filesize, tree)
+
+        #Number of trials
+        N_grab = 5
+
+        #Fill the events Serial
+        for i in range(N_grab):
+            #Regenerate event generator
+            evts = event.EventParser(0, testfile.filesize, tree)
+
+            Time.start("serial fill() trial %i" % (i+1) )
+            out = Parallel.run(func, evts, ParallelPool=None)
+            Time.end()
+            self.assertEqual(range(testfile.filesize), out)
+
+        #Fill the events in CPU-parallel
+        for i in range(N_grab):
+            #Regenerate event generator
+            evts = event.EventParser(0, testfile.filesize, tree)
+            
+            Time.start("CPU-parallel fill() trial %i" % (i+1) )
+            out = Parallel.run(func, evts, ParallelPool=Pool)
+            Time.end()
+            self.assertEqual(range(testfile.filesize), out)
+
+
+
 if __name__ == "__main__":
     #enter read only context
     #print test_parallel_GetEvent_collision()
+    recreate_testfile()
     unittest.main()

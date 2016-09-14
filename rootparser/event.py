@@ -15,7 +15,11 @@ class Event:
         self.particle_lst = []
         self.index = index          #event number
         self.tree = tree_handle     #active TTree
-        #How do we want to init?
+        #Event filling:
+        #   1) discover the number of particles
+        #   2) iterate over particles creating 'Particle' objects
+        #self.n_parts = self.fetch_n_parts()
+
         return
 
     def __str__(self):
@@ -39,6 +43,16 @@ class Event:
     def __iter__(self):
         return iter(self.particle_lst)
 
+    @versioncontrol
+    def fetch_n_parts(self, nparts_leaf="N_PART"):
+        return int(self.tree.GetLeaf(nparts_leaf).GetValue())
+
+    def fill(self):
+        #discover particles in the current event
+        #for p_i in self.n_parts:
+            #self.particle_lst.append(Particle(p_i))
+        return self.index
+
     def get_neutrons(self):
 
         return
@@ -57,14 +71,19 @@ class Event:
         self.particle_lst.append(particle)
         return self
 
+#Global-scoped method for parsing events
+#Will modify the 'Event' object passed into it
+def fill_event(evt_obj):
+    return evt_obj.fill()
+
 ######################################################################
 class Particle:
     """Representation of a particle pulled from a given event"""
 
-    def __init__(self):
-        #metadata
+    def __init__(self, index):
+        #metadata:
         self.event_index = None
-
+        self.p_i = index #the index of this particle within an event
         #identification
         self.ID = None
         self.name = None
@@ -74,61 +93,66 @@ class Particle:
         self.p = [0, 0, 0]
 
         return
+    #FIXME: how will we access the current tree? What is its name?
+    #FIXME: two possible implementations for momentum leaf
+    #           1) three separate leafs: mc_FSPartPx, mc_FSPartPy, ...
+    #    --->   2) A leaf with subleafs: mc_FSPartP -> Values 0, 1, 2
+    @versioncontrol
+    def get_4vec(self, evt, xyz_prefix="PART_XYZ_PREFIX", energy="PART_E"):
+        #Get the 4-vector for a particle with index i at event evt
+        out = [0,0,0,0]
+        #Put momenta in indices 1-3
+        for dim_i, dim in enumerate(["x", "y", "z"]):
+            leaf = xyz_prefix + dim
+            out[dim_i+1] = evt.tree.GetLeaf(leaf).GetValue(self.p_i)
+
+        #Put energy at index 0
+        out[0] = evt.tree.GetLeaf(energy).GetValue(self.p_i)
+
+        return np.array(out)
+
+    #FIXME: These may not work: is decorator called on the inner function of
+    #these templated functions?
+    def get_4vec_mc(self, evt):
+        return self.get_4vec(evt, xyz_prefix="MC_PART_XYZ_PREFIX", energy="MC_PART_E")
+
+    def get_4vec_data(self, evt):
+        return self.get_4vec(evt, xyz_prefix="DATA_PART_XYZ_PREFIX", energy="DATA_PART_E")
+
+
+    @versioncontrol
+    def get_name(self, evt, nu_branch="INCOMING_PART", id_branch="PART_ID"):
+    	#Get the ID,name of a particle based on FS PDG or incoming info
+    	if incoming:
+    		leaf_obj = self.current_tree.GetLeaf(nu_branch) #FIXME: ????
+    		evt_id = 0
+    	else:
+    		evt_id = self.current_tree.GetLeaf(id_branch).GetValue(i)
+
+    	return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=self.quiet) #(ID, name)
+
+    def get_name_mc(self, evt):
+        return self.get_name(evt, nu_branch="MC_INCOMING_PART", id_branch="MC_PART_ID")
+
+    def get_name_data(self, evt):
+        return self.get_name(evt, nu_branch="DATA_INCOMING_PART", id_branch="DATA_PART_ID")
+
 
 
 
 def EventParser(start, end, tree_handle):
     #Passed an open Rootfile, GENERATE Event objects in the event range (start, end)
     while start < end:
-        print "Iteration %i" % start
+        #print "Iteration %i" % start
         yield Event(start, tree_handle)
         start += 1
 
-def ParseEvents():
+#Crawl through the tree and run Event's main routine
+def ParseEvents(start, end, tree_handle):
 
     return
 
-#FIXME: how will we access the current tree? What is its name?
-#FIXME: two possible implementations for momentum leaf
-#           1) three separate leafs: mc_FSPartPx, mc_FSPartPy, ...
-#           2) A leaf with subleafs: mc_FSPartP -> Values 0, 1, 2
-@versioncontrol
-def get_4vec(evt, xyz_prefix="PART_XYZ_PREFIX", energy="PART_E"):
-    #Get the 4-vector for a particle with index i at event evt
-    out = [0,0,0,0]
-    #Put momenta in indices 1-3
-    for dim_i, dim in enumerate(["x", "y", "z"]):
-        leaf = xyz_prefix + dim
-        out[dim_i+1] = evt.tree.GetLeaf(leaf).GetValue(evt.i)
 
-    #Put energy at index 0
-    out[0] = evt.tree.GetLeaf(energy).GetValue(evt.i)
-
-    return np.array(out)
-
-def get_4vec_mc(evt):
-    return get_4vec(evt, xyz_prefix="MC_PART_XYZ_PREFIX", energy="MC_PART_E")
-
-def get_4vec_data(evt):
-    return get_4vec(evt, xyz_prefix="DATA_PART_XYZ_PREFIX", energy="DATA_PART_E")
-
-
-@versioncontrol
-def get_name(evt, nu_branch="INCOMING_PART", id_branch="PART_ID"):
-	#Get the ID,name of a particle based on FS PDG or incoming info
-	if incoming:
-		leaf_obj = self.current_tree.GetLeaf(nu_branch) #FIXME: ????
-		evt_id = 0
-	else:
-		evt_id = self.current_tree.GetLeaf(id_branch).GetValue(i)
-
-	return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=self.quiet) #(ID, name)
-
-def get_name_mc(evt):
-    return get_name(evt, nu_branch="MC_INCOMING_PART", id_branch="MC_PART_ID")
-
-def get_name_data(evt):
-    return get_name(evt, nu_branch="DATA_INCOMING_PART", id_branch="DATA_PART_ID")
 
 if __name__ == "__main__":
 
