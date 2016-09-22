@@ -10,6 +10,7 @@ from multiprocessing import Queue, Process
 from functools import partial
 
 import time
+import math
 
 #Default mode for paralellization: process-parallel
 PARALLEL_POOL = Pool
@@ -23,10 +24,16 @@ THREADING = True # do we want to implement threading?
 lock = None
 
 class ThreadManager:
-    def __init__(self):
+    def __init__(self, n_processes=None):
         #A shared queue to be accessed as needed by external functions
         #self.queue = Queue()
         self.count = 0
+
+        #default number of processes is CPU count
+        if n_processes != None:
+            self.n_processes = n_processes
+        else:
+            self.n_processes = cpu_count()
 
     #for future use?
     @staticmethod
@@ -34,17 +41,14 @@ class ThreadManager:
         global lock
         lock = L
 
-    def run(self, func, target, ParallelPool=PARALLEL_POOL, n_processes=None):
+    def run(self, func, target, ParallelPool=PARALLEL_POOL):
         #strictly serial
         if ParallelPool == None:
             return map(func, target)
 
-
         #Apply func to each object in target, launching parallel processes
         pool = ParallelPool()
 
-        if n_processes == None:
-            n_processes = cpu_count()
         #Initialize a team of workers depending on the concurrency model
         if type(pool) is multiprocessing.pool.Pool:
             #Initialize the current function by providing it the queue
@@ -52,9 +56,9 @@ class ThreadManager:
             #lock = multiprocessing.Lock()
             #pool = ParallelPool(processes, initializer=self.init_lock, initargs=(lock, ))
 
-            pool = ParallelPool(processes=n_processes)
+            pool = ParallelPool(processes=self.n_processes)
         elif type(pool) is multiprocessing.pool.ThreadPool:
-            pool = ParallelPool(n_processes)
+            pool = ParallelPool(self.n_processes)
         else:
             raise ParallelError("RunParallel received bad pool specification")
 
@@ -64,6 +68,52 @@ class ThreadManager:
         pool.close()
         pool.join()
         return result
+
+    #Different run implementation; excercise finer control over Process dist.
+    #Different form from 'run' since Pool does not exist
+    #FIXME: Processes need to communicate with a queue to return??
+    def run2(self, func, target, Parallel=True):
+
+        if Parallel == False:
+            return map(func, target)
+
+        #Distribute the main target array into sub arrays
+        split_target = self.distribute_target(target)
+
+        #Error handling
+        if split_target == -1:
+            raise ParallelError("Cannot distribute target with fewer arguments than proc")
+
+        Ps = []      #list of spawned processes
+
+        #Spawn as many processes as we need and assign to sub-lists
+        for i, arg in enumerate(split_target):
+            p = Process(target=partial(map,func), args=(arg, ) )
+            Ps.append(p)
+            p.start()
+
+    #Divide a large array target into n_processes smaller arrays
+    #Uneven distribution for small targets
+    def distribute_target(self, target):
+
+        #Do not allow distribution if
+        if len(target) < self.n_processes:
+            return -1
+
+        #get approx subarray length
+        N = int(math.floor(len(target) / self.n_processes ))
+        out = [ target[i:i+N] for i in range(0, len(target), N) ]
+
+        #Collapse the remaining chunks into the last one
+        if len(target) % self.n_processes != 0:
+            for rem in out[8:]:
+                out[7] += rem
+                out.remove(rem)
+
+        return out
+
+        #Assume the value position relates to access time; combine the last two
+        #lists if there's more than 8
 
 
 

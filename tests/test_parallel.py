@@ -16,30 +16,25 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 #Errors and logging
 from rootparser_exceptions import ChildThreadError
-import rootparser_exceptions #loggin config
-
+#import rootparser_exceptions #loggin config
+from rootparser_exceptions import ParallelError
 
 
 #For applying different tests
 import random
 random.seed()
 import event
-import IO
 import rootpy.ROOT as ROOT
 
 #Regenerating our file...
 import maketestfiles as testfile
+import IO
+from IO import versioncontrol
 
-
-# # # # GLOBAL OBJECTS # # # # #
-#File managers for testing parallel returns
-#initialized at ParallelTest.__init__
-global_f = None #IO filehandle
-tree = None # tree handle
-dummyIO = None #IO file wrapper objecct
+import os
 
 #Boot the thread manager with the current tree
-Parallel = ThreadManager()
+Parallel = ThreadManager(n_processes=8)
 
 #timing
 Time = Timer()
@@ -140,15 +135,38 @@ def parallel_access_2(index):
 
     return (t1, t2)
 
-def recreate_testfile():
-    global dummyIO, tree
-    testfile.generate_MC()
-    dummyIO = IO.RootIOManager(testfile.MC_filename)
-    #grab the test-tree
-    tree = dummyIO.list_of_trees[0]
-    tree.GetEvent()
-    time.sleep(1)
-    return
+@versioncontrol
+def fetch_n_parts_mc(tree, evt, nparts_leaf="MC_N_PART"):
+    k = tree.GetEvent(evt.index)
+    out = int(tree.GetLeaf("event").GetValue())
+    #Odd out-of-synch...
+    if out != evt.index:
+        print evt.index, out
+    return out
+
+
+    while True:
+        try:
+            k = tree.GetEvent(evt.index)
+            out = int(tree.GetLeaf("event").GetValue())
+            #Odd out-of-synch...
+            if out != evt.index:
+                print evt.index, out
+            return out
+
+        except:
+            print sys.exc_info()[0]
+            os._exit(1)
+            #There was a clash for access, take a nap!:
+            print "!!!!!"
+            time.sleep(.001)
+        else:
+            pass
+
+#Wrapped version of the fetch function
+def fetch(evt_obj):
+    return event.fetch_n_parts_mc(evt_obj)
+
 
 
 # # # # # # # # # # # # # # # # # # #
@@ -228,22 +246,34 @@ class ParallelTest(unittest.TestCase):
             self.assertEqual(pair[0], pair[1])
         return
 
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     def test_TTreeIO_timing(self):
+        #skip
         return
         global Time, tree, dummyIO
         #5 trials for Accessing
-        N_grab = 20
+        N_grab = 5
 
         func = tree_access
         entries = range(testfile.filesize)
 
+        #test many serial accesses
+        for i in range(N_grab):
+            #continue
+            Time.start("serial IO trial %i" % (i+1) )
+            sp = Parallel.run(func, entries, ParallelPool=None)
+            Time.end()
+            self.assertEqual(sp, entries)
 
-        # #test many serial accesses
-        # for i in range(N_grab):
-        #     Time.start("serial IO trial %i" % (i+1) )
-        #     sp = Parallel.run(func, entries, ParallelPool=None)
-        #     Time.end()
-        #     self.assertEqual(sp, entries)
+        #Process-parallel
+        for i in range(N_grab):
+            continue
+            Time.start("process-parallel IO trial %i" % (i+1) )
+            pp = Parallel.run(tree_access, entries, ParallelPool=Pool)
+            Time.end()
+            self.assertEqual(entries, pp)
 
         #FIXME: thread-parallel not working!
         #Getting repeats of read entries; this may mean the pool.map is working improperly
@@ -281,49 +311,126 @@ class ParallelTest(unittest.TestCase):
             #self.assertEqual(list(sorted(tp)), entries)
 
         #Test process-parallel access
+
+            #temp = pp
+            #self.recreate_testfile()
+        return
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    def test_event_fill(self):
+        #Test a local version of event.fill
+        return #skip
+        global tree, dummyIO
+        func = fetch
+
+        #Number of trials
+        N_grab = 1                         #Number of trials to run
+        ref = range(testfile.filesize)      #N_parts matches event number
+
+        #Fill the events Serial
+        for i in range(N_grab):
+            evts = event.EventParser(0, testfile.filesize, IO.tree)
+            Time.start("serial fill() trial %i" % (i+1) )
+            out = Parallel.run(func, evts, ParallelPool=None)
+            Time.end()
+            self.assertEqual(ref, out)
+
+        #Fill the events in CPU-parallel
+        for i in range(N_grab):
+            evts = event.EventParser(0, testfile.filesize, IO.tree)
+            Time.start("CPU-parallel fill() trial %i" % (i+1) )
+            out = Parallel.run(func, evts, ParallelPool=Pool)
+            Time.end()
+            self.assertEqual(ref, out)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    def test_event_fill_obj(self):
+        #Test the Event.fill method in the object setting
+         #pass
+        global tree, dummyIO
+        #Initialize an event generator fo rhe current tree
+        #func = event.fill_event
+        func = event.fill_event
+        evts = event.EventParser(0, testfile.filesize, IO.tree)
+
+        #Number of trials
+        N_grab = 1                         #Number of trials to run
+        ref = range(testfile.filesize)      #N_parts matches event number
+
+        #Fill the events Serial
+        for i in range(N_grab):
+            evts = event.EventParser(0, testfile.filesize, IO.tree)
+            Time.start("serial fill() OO trial %i" % (i+1) )
+            evt_lst = Parallel.run(func, evts, ParallelPool=None)
+            Time.end()
+
+        #Fill the events in CPU-parallel
+        for i in range(N_grab):
+            evts = event.EventParser(0, testfile.filesize, IO.tree)
+            Time.start("CPU-parallel OO fill() trial %i" % (i+1) )
+            evt_lst = Parallel.run(func, evts, ParallelPool=Pool)
+            Time.end()
+
+        #Check that objects were filled properly
+        IDs = []
+        for evt in evt_lst:
+            IDs += [part.ID for part in evt.particle_lst]
+        ref = [2112 for i in range(testfile.filesize)]
+        self.assertEqual(IDs, ref, msg="Particle IDs fetched incorrectly")
+
+        #Check that events were indexed properly 
+        EVTs = [evt.index for evt in evt_lst]
+        ref = range(testfile.filesize)
+        self.assertEqual(EVTs, ref, msg="Particle events parsed incorrectly")
+
+
+        #Make sure parallel distribute works
+        def test_Parallel_distribute(self):
+            #pass
+            return
+            for L in [1, 2, 3, 5, 8, 13, 21, 34, 45, 1007]:
+                distributed = Parallel.distribute_target(range(L) )
+                if distributed == -1:
+                    continue
+                self.assertEqual(len(distributed), Parallel.n_processes)
+
+    #FIXME: Individual processes don't like returning results...
+    def test_Parallel_run2(self):
+        #pass
+        return
+
+        #5 trials for Accessing
+        N_grab = 5
+
+        func = tree_access
+        entries = range(testfile.filesize)
+
+        #test many serial accesses
+        for i in range(N_grab):
+            Time.start("serial IO trial %i" % (i+1) )
+            sp = Parallel.run2(func, entries, Parallel=False)
+            Time.end()
+            self.assertEqual(sp, entries)
+
+        #Test process-parallel access
         for i in range(N_grab):
             Time.start("process-parallel IO trial %i" % (i+1) )
-            pp = Parallel.run(tree_access, entries, ParallelPool=Pool)
+            pp = Parallel.run2(tree_access, entries, Parallel=True)
             Time.end()
             self.assertEqual(entries, pp)
             #temp = pp
             #self.recreate_testfile()
         return
 
-    def test_event_fill(self):
-        #Test the Event.fill method, in series then in parallel
-        global tree, dummyIO
-        #Initialize an event generator fo rhe current tree
-        func = event.fill_event
-        evts = event.EventParser(0, testfile.filesize, tree)
-
-        #Number of trials
-        N_grab = 5
-
-        #Fill the events Serial
-        for i in range(N_grab):
-            #Regenerate event generator
-            evts = event.EventParser(0, testfile.filesize, tree)
-
-            Time.start("serial fill() trial %i" % (i+1) )
-            out = Parallel.run(func, evts, ParallelPool=None)
-            Time.end()
-            self.assertEqual(range(testfile.filesize), out)
-
-        #Fill the events in CPU-parallel
-        for i in range(N_grab):
-            #Regenerate event generator
-            evts = event.EventParser(0, testfile.filesize, tree)
-            
-            Time.start("CPU-parallel fill() trial %i" % (i+1) )
-            out = Parallel.run(func, evts, ParallelPool=Pool)
-            Time.end()
-            self.assertEqual(range(testfile.filesize), out)
-
 
 
 if __name__ == "__main__":
     #enter read only context
     #print test_parallel_GetEvent_collision()
-    recreate_testfile()
+
+    IO.recreate_testfile()
     unittest.main()
+    #Events = event.EventParser(1,2,tree)
+    # t = range(83)
+    # for evt in Events:
+    #     print Parallel.distribute_target(t)

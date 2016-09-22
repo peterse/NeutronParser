@@ -249,37 +249,6 @@ class MC_N_event:
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	def getMCParts(self, event):
-	#Splits an event into a dct of particles and their 4vecs IN DETECTOR COORDS
-
-		#Base number of particles on nFSPart
-		leaf_obj = self.current_tree.GetLeaf("mc_nFSPart")
-		N_parts = int(leaf_obj.GetValue())
-		if not self.quiet:
-			print "%i particles found in event %i" %(N_parts, event)
-
-		#Initialize dictionary of particles in interaction
-		mc_dct = OrderedDict({})
-
-		for n_part in range(N_parts):
-			mc_dct[n_part] = self.template_odct()
-
-		#Get 4vectors and populate
-		vecs = self.__get_4vecs(event, N_parts)
-		for part_num, vec in enumerate(vecs):
-			mc_dct[part_num]["4vec"] = vec
-
-		#Get names, populate
-		for part_num, nth_dct in mc_dct.iteritems():
-
-			(ID, name) = self.__get_name(event, part_num)
-			nth_dct["ID"] = ID
-			nth_dct["Name"] = name
-
-			#Remember where we put the lepton
-			#! ! ! ! GENERALIZE !! ! ! !
-			if name in [ "muon","antimuon"]:
-				self.i_big_lep = part_num
 
 			#Get mass, correct 4vec
 			nth_dct["reconMass"] = self.vec_mass(nth_dct["4vec"])
@@ -326,18 +295,6 @@ class MC_N_event:
 			self.export_dct["nu_py"].Fill(tot_P[2])
 
 		return nu_dct
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	def __get_name(self, event, index, incoming=False):
-	#Get the name of a particle based on FS PDG or incoming info
-		if incoming:
-			leaf_obj = self.current_tree.GetLeaf("mc_incoming")
-			evt_id = 0
-		else:
-			leaf_obj = self.current_tree.GetLeaf("mc_FSPartPDG")
-			evt_id = leaf_obj.GetValue(index)
-			#print evt_id
-		return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=self.quiet) #(ID, name)
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -592,23 +549,7 @@ class MC_N_event:
 
 		return recon_mu_p, r_blobs_lst, vtx
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	def makeKineNeutron(self, P_mu):
-	#Using deterministic QE kinematics punch out some neutrons
-	#Takes in muon 4vec, mc or recon
 
-		#Define some kinematic values
-		A = (P_mu[3] + self.m_p - self.BE_p - P_mu[0])
-		B = (P_mu[1]**2 + P_mu[2]**2 + self.m_n**2)
-
-		#Simple calculations of neutron kinematics (see Peters, 2016)
-		E_n = (B + A**2)/(2*A)
-		p_nz = (B - A**2) / (2*A)
-		if E_n < 0:
-			print "MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n
-			return None
-	#Get kinetic energies of neutrons
-		return (E_n - self.m_n, -P_mu[1], -P_mu[2], p_nz)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -694,17 +635,7 @@ class MC_N_event:
 		print "%d < r_vb < %d" % self.rvb_range
 		print "%d < E_n,mc < %d" % self.E_n_range
 
-	def get_u(self, vec):
-	#u ~ v/c: returns the velocity and speed given a 4vec
-		#p_norm = sum(map(lambda x: x*x, vec[1:]))**0.5
-		p = np.array(vec[1:])
-		v = p*self.c/ vec[0]
-		v_norm = sum(map(lambda x: x*x, v))**0.5
-		#v, |v|
-		#print v, v_norm
-		return v, v_norm
-		#print "|v/c| =", p_norm / vec[0]
-		#print "v =", p*self.c/ vec[0]
+
 
 	def fetch_vec(self, event, leafname = "vtx", tree=None):
 	#Return a generic 4vector from a given leaf
@@ -800,21 +731,6 @@ class MC_N_event:
 		v_out = np.sin(-np.pi/3)*xyz_tup[0] + np.cos(-np.pi/3)*xyz_tup[1]
 		return (x_out, u_out, v_out, xyz_tup[2])
 
-	@staticmethod
-	def rot2D_matrix(theta):
-	#Initialize a rotation matrix for a given theta, in radians
-		return ( (math.cos(theta), -math.sin(theta)), (math.sin(theta), math.cos(theta)) )
-
-
-	@staticmethod
-	def vec_mass(tupl):
-	#Return the mass of a 4vec (E, px, py, pz)
-		sqrs = map(lambda x: x*x, tupl)
-		try:
-			return (sqrs[0] - sum(sqrs[1:]))**.5
-		#Return imaginary number if norm(E) < norm(p)
-		except ValueError:
-			return complex(0,abs(sqrs[0] - sum(sqrs[1:]))**.5)
 
 	@staticmethod
 	def cart2spherical(tupl):
@@ -824,26 +740,7 @@ class MC_N_event:
 		theta = np.arccos(tupl[2]/r)
 		return r, phi, theta
 
-	def yz_rotation(self, p_vec):
-	#takes a 4vec (E, x, y, z) OR 3vec (x,y,z)
-		dims = len(p_vec)
-		if dims == 4:
-			zpyp = (p_vec[3], p_vec[2]) #(z, y)
-		elif dims == 3:
-			zpyp = (p_vec[2], p_vec[1])
-		#code golf!
-		#cor_zy2 = tuple([sum([a*b for a,b in zip(zpyp, i)]) for i in self.rot_matrix])
-		#Explicit switch
-		cor_zy = [0, 0]
-		for i, rot_tup in enumerate(self.rot_matrix):
-			#Matrix multiplication / linear alg
-			cor_zy[i] = sum([a*b for a,b in zip(zpyp, rot_tup)])
-		cor_zy = tuple(cor_zy) #(z', y')
 
-		if dims == 4:
-			return (p_vec[0], p_vec[1], cor_zy[1], cor_zy[0])
-		elif dims == 3:
-			return (p_vec[0], cor_zy[1], cor_zy[0])
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	#KINDA DEPRECATED, I DON'T KNOW...

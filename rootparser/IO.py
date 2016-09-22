@@ -5,11 +5,32 @@ conventions for finding specific values in the tree
 
 import rootpy.ROOT as ROOT
 import rootpy
+import maketestfiles as testfile
 #import ROOT
 import os
 #FIXME: Why can't I import exceptions??
 
 ######################################################################
+
+# # # # GLOBAL OBJECTS # # # # #
+#File managers for testing parallel returns
+global_f = None #IO filehandle
+tree = None # tree handle
+dummyIO = None #IO file wrapper objecct
+
+######################################################################
+
+#FIXME: temporary home for testfile
+def recreate_testfile():
+    #Recreate the testfile and reassign global handles
+    global dummyIO, tree, global_f
+    testfile.generate_MC()
+    dummyIO = RootIOManager(testfile.MC_filename)
+    #grab the test-tree
+    tree = dummyIO.list_of_trees[0]
+    tree.GetEvent()
+    return
+
 class RootFileManager:
     """Class for parsing a ROOT file and creating py objects that parallel
     the root structure"""
@@ -93,11 +114,12 @@ class RootIOManager:
 
 #A conversion dictionary for the VALUE_YOU_NEED: branch_to_access
 lookup_dct = {
-            "MC_N_PART": "mc_nFSpart",
+            "MC_N_PART": "mc_nFSPart",
             "MC_PART_XYZ_PREFIX": "mc_FSPartP",
             "MC_PART_E": "mc_FSPartE",
             "MC_PART_ID": "mc_FSPartPDG",
             "MC_INCOMING_PART": "mc_incoming",
+            "MC_INCOMING_ENERGY": "mc_incomingE",
 
             "DATA_PART_XYZ_PREFIX": "derp2",
             "DATA_PART_E": "derp",
@@ -107,8 +129,12 @@ lookup_dct = {
 
             }
 
+#Ordered list of ROOT file-type
+#Index is used in function calls with datatype-specific leafnames
+datatype_lst = ["MC", "DATA", "RECON"]
 
 #Update the lookup_dct
+#TODO:
 def update_lookup_dct():
     return
 
