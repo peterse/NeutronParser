@@ -37,6 +37,13 @@ def recreate_testfile():
     tree.GetEvent()
     return
 
+
+def divide_tree():
+    #Take the global tree handle and distribute it into global subtree list
+    global tree, subtrees
+
+
+
 #Sub-Tree splitting:
 
 def split_file():

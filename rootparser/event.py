@@ -40,9 +40,15 @@ class Event:
                                     #generated ones?
         self.particles_extra = []
         self.index = index          #event number
-        self.tree = tree_handle     #active TTree
         self.datatype = datatype
 
+        #Manage I/O and event distribution
+        self.i_subtree = self.get_subtree_index
+        #TODO:
+        #Template for our subtree:
+        #we don't actually want a private tree handle...
+        self.tree = IO.subtrees[self.i_subtree]     #active TTree
+        self.tree = None
 
 
         self.n_parts = 0
