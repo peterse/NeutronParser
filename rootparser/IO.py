@@ -24,6 +24,8 @@ tree = None # tree handle
 subtrees = []
 dummyIO = None #IO file wrapper objecct
 
+
+
 ######################################################################
 
 #FIXME: temporary home for testfile
@@ -38,20 +40,8 @@ def recreate_testfile():
     return
 
 
-def divide_tree():
-    #Take the global tree handle and distribute it into global subtree list
-    global tree, subtrees
 
 
-
-#Sub-Tree splitting:
-
-def split_file():
-    #Split the main TTree of a Rootfile and distribute it
-    #Populates the global list 'subtrees' with handles of smaller tree types
-    global subtrees
-
-    return None
 
 def get_subtree(arg):
     #When a process asks for a tree, give it one through this method
@@ -66,8 +56,47 @@ def get_subtree(arg):
 
 
 ######################################################################
+#Sub-Tree splitting:
+
+def split_file(f):
+    #Split the main TTree of a Rootfile and distribute it
+    #Populates the global list 'subtrees' with handles of smaller tree types
+    #Input: filename
+    global subtrees, tree
+
+    #Make the temporary file in temp
+    tmp = get_tmp_dir()
+
+    #Parse the current rootfile and divide it up
+    #TODO: How do we handle multiple trees in a file?
+
+    #Open the file:
+    #FIXME
+    fh = None
+    #Divide the tree(s)
+    for t in get_trees(fh)
 
 
+
+    return None
+
+def get_tmp_dir():
+    #TODO:
+    #Use current path to find location of tmp?
+    pwd = os.get_cwd()
+
+def get_trees(fh):
+    #TODO:
+    #Passed an active filehandle, put active TTrees into a list
+
+def divide_tree(N_PIPELINES):
+    #Take the global tree handle and distribute it into global subtree list
+    #Create a total of N_PIPELINES subtrees
+    global tree, subtrees
+
+######################################################################
+
+#FIXME: Disentegrate this class and make methods act on globals
 class RootFileManager:
     """Class for parsing a ROOT file and creating py objects that parallel
     the root structure"""
@@ -89,6 +118,7 @@ class RootFileManager:
 
 
     #TODO: More robust; copy over more functionality from dctROOT except cleaner and more modular...
+    #TODO: Rewrite using rootpy file.walk() method!
     def get_list_of_trees(self, obj_handle=None):
         #Descend into the ROOT file recursively, picking out the handles of TTrees. Return a list of TTrees
 
