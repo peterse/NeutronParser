@@ -12,6 +12,11 @@ import os
 #File management
 import IO
 
+#Debugging
+sys.path.append("/home/epeters/NeutronParser/tests")
+import maketestfiles as testfile
+from parallel import ThreadManager
+from multiprocessing import Pool
 
 """MC.py - Root tools for interfacing with an MC-generated Minerva tree"""
 
@@ -29,14 +34,14 @@ class Event:
     #   tree_handle: the active TTree
     #   filetype: Determines which functions to implement based on branch names
 
-    def __init__(self, index, tree_handle, filetype=0):
+    def __init__(self, index, tree_handle, datatype=0):
         #Instance attributes
         self.particle_lst = []      #FIXME: Distinguish 'natural' particles from
                                     #generated ones?
         self.particles_extra = []
         self.index = index          #event number
         self.tree = tree_handle     #active TTree
-        self.filetype = filetype
+        self.datatype = datatype
 
 
 
@@ -117,12 +122,16 @@ def fetch_n_parts_mc(evt, nparts_leaf="MC_N_PART"):
     #Get the number of particles in this event
     while True:
         try:
-            k = IO.get_subtree().GetEvent(evt.index) #FIXME: nullified by subtreeing
-            out = int(IO.get_subtree().GetLeaf(nparts_leaf).GetValue())
+            k = IO.get_subtree(0).GetEvent(evt.index) #FIXME: nullified by subtreeing
+            out = int(IO.get_subtree(0).GetLeaf(nparts_leaf).GetValue())
 
             #FIXME: Eventually, only assign
             evt.n_parts = out
             return True
+
+        except IOError:
+            #get_subtree(0) failed
+            os._exit()
 
         except:
             #There was a clash for access, take a nap!:
@@ -136,41 +145,29 @@ def fetch_vec_base(e_i, leafname):
     out = [0, 0, 0, 0]
     #FIXME: Are we sure this is the general order of vector components?
     for i, dim in enumerate([ "x", "y", "z", "t"]):
-        out[i] = IO.get_subtree().GetLeaf(leafname).GetValue(i)
+        out[i] = IO.get_subtree(0).GetLeaf(leafname).GetValue(i)
 
     return out
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def get_vtx(e_i, datatype=0):
+    if datatype == 0:
+        return get_vtx_mc(e_i)
+    elif datatype == 1:
+        return get_vtx_data(e_i)
+    elif datatype == 2:
+        #TODO:
+        pass
 
 @versioncontrol
 def get_vtx_mc(e_i, vtx_branch="MC_VTX"):
     #Passed an event index, return the mc VTX "4-vec"
-    return fetch_vec_base(e_i, branch)
-
+    return fetch_vec_base(e_i, vtx_branch)
 @versioncontrol
 def get_vtx_data(e_i, vtx_branch="RECON_VTX"):
     #Passed an event index, return the mc VTX "4-vec"
-    return fetch_vec_base(e_i, branch)
-
-
-
-def get_name_base(p_i, inc=False, nu_branch, id_branch):
-	#Get the ID,name of a particle based on FS PDG or incoming info
-    if incoming:
-        #nu doesn't use 'GetValue(p_i)' since it has its own branch
-        #FIXME:
-        evt_id = IO.get_subtree().GetLeaf(nu_branch).GetValue()
-        evt_
-        evt_id = 0
-    else:
-        evt_id = IO.get_subtree().GetLeaf(id_branch).GetValue(p_i)
-
-	return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=True) #(ID, name)
-
-@versioncontrol
-def get_name_mc(p_i, inc=False, nu_branch="MC_INCOMING_PART", id_branch="MC_PART_ID"):
-    return get_name_base(p_i, inc=inc, nu_branch, id_branch)
-
-
-
+    return fetch_vec_base(e_i, vtx_branch)
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #FIXME: Different fill methods depending on MC, DATA, RECON
 def fill_parts(evt):
@@ -184,29 +181,29 @@ def fill_parts(evt):
 
     for part in evt.particle_lst:
         #Fill the particle's name, returning success/failure
-        good_fill = fill_particle_mc(part)
+        good_fill = fill_particle(part, datatype=evt.datatype)
 
-    #Add the neutrino
-    evt.nu = get_neutrino(p_i, evt.index)
+    #Add the neutrino foundation - calculate later
+    evt.nu = get_neutrino(p_i, evt.index, datatype=evt.datatype)
 
     #Add the vertex
     #FIXME: we're getting a vertex from MC OR DATA - resolve conflicts?
     mc_vtx = get_vtx(evt.index, datatype=0)
     recon_vtx = get_vtx(evt.index, datatype=2)
-    if 1:       #FIXME: condition for acceptable vertex discrepancy...
+    if True:       #FIXME: condition for acceptable vertex discrepancy...
         evt.vtx = recon_vtx
 
     #Add the blobs
-    
+
 
     #FIXME: Is nu part of the particle list or not?
     #evt.particle_lst.append()
     #p_i += 1
 
 
-
-    evt.particle_lst.append(make_kine_neutron(p_i, evt.index))
-    p_i += 1
+    #Generate one (or more?) kinematic neutron
+    #evt.particle_lst.append(make_kine_neutron(p_i, evt.index))
+    #p_i += 1
 
     return good_fill
 
@@ -288,36 +285,32 @@ def get_name(p_i, inc=False, datatype=0):
         #TODO:
         pass
 
-
-def get_name_base(p_i, inc=False, nu_branch, id_branch):
+def get_name_base(p_i, inc, nu_branch, id_branch):
 	#Get the ID,name of a particle based on FS PDG or incoming info
-    if incoming:
+    if inc:
         #nu doesn't use 'GetValue(p_i)' since it has its own branch
         #FIXME:
-        evt_id = IO.get_subtree().GetLeaf(nu_branch).GetValue()
-        evt_
-        evt_id = 0
+        evt_id = IO.get_subtree(0).GetLeaf(nu_branch).GetValue()
     else:
-        evt_id = IO.get_subtree().GetLeaf(id_branch).GetValue(p_i)
+        evt_id = IO.get_subtree(0).GetLeaf(id_branch).GetValue(p_i)
 
-	return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=True) #(ID, name)
+    return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=True) #(ID, name)
 
 @versioncontrol
 def get_name_mc(p_i, inc=False, nu_branch="MC_INCOMING_PART", id_branch="MC_PART_ID"):
-    return get_name_base(p_i, inc=inc, nu_branch, id_branch)
-
+    return get_name_base(p_i, inc, nu_branch, id_branch)
 @versioncontrol
 def get_name_data(p_i, inc=False, nu_branch="DATA_INCOMING_PART", id_branch="DATA_PART_ID"):
-    return get_name_base(p_i, inc=inc, nu_branch, id_branch)
+    return get_name_base(p_i, inc, nu_branch, id_branch)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #Globally-scoped functions for modifying particle object
-def fill_particle(part):
+def fill_particle(part, datatype=0):
 
     #Particle name
-    part.ID, part.name = get_name(part.index, part.inc)
+    part.ID, part.name = get_name(part.index, part.inc, datatype=datatype)
     #particle
-    part.P = get_4vec(part.index, part.event_index, datatype=0)
+    part.P = get_4vec(part.index, part.event_index, datatype=datatype)
 
     #TODO: Assignment vs return
     return 1
@@ -341,12 +334,12 @@ def get_4vec_base(p_i, e_i, xyz_prefix, energy):
     #Put momenta in indices 1-3
     for dim_i, dim in enumerate(["x", "y", "z"]):
         leaf = xyz_prefix + dim
-        IO.get_subtree().GetEvent(e_i)  #FIXME: not necessary with subtreeing
-        out[dim_i+1] = IO.get_subtree().GetLeaf(leaf).GetValue(p_i)
+        IO.get_subtree(0).GetEvent(e_i)  #FIXME: not necessary with subtreeing
+        out[dim_i+1] = IO.get_subtree(0).GetLeaf(leaf).GetValue(p_i)
 
     #Put energy at index 0
-    IO.get_subtree().GetEvent(e_i)
-    out[0] = IO.get_subtree().GetLeaf(energy).GetValue(p_i)
+    IO.get_subtree(0).GetEvent(e_i)
+    out[0] = IO.get_subtree(0).GetLeaf(energy).GetValue(p_i)
 
     return np.array(out)
 
@@ -365,7 +358,17 @@ def calculate_attrs(part):
     part.mass = MINERvAmath.get_mass(part.P)
 
 
-def get_neutrino_base(p_i, e_i):
+def get_neutrino(p_i, inc=False, datatype=0):
+    if datatype == 0:
+        return get_neutrino_mc(p_i, inc)
+    elif datatype == 1:
+        #TODO
+        pass
+    elif datatype == 2:
+        #TODO:
+        pass
+
+def get_neutrino_base(p_i, e_i, nu_energy):
     #Generate a particle object representation for a neutrino
     nu = Particle(p_i, e_i)
     nu.inc = True
@@ -373,20 +376,22 @@ def get_neutrino_base(p_i, e_i):
     #Get the neutrino name information
     nu.ID, nu.name = get_name(p_i, nu.inc)
     #Fill in what we can about energy - momentum isn't available!
-    E = IO.get_subtree().GetLeaf(nu_energy).GetValue()
+    IO.get_subtree(0).GetEvent(e_i)
+    E = IO.get_subtree(0).GetLeaf(nu_energy).GetValue()
     nu.P = [E, 0, 0, 0]
-    return
+
+    #Return the entire particle object
+    return nu
 
 
 @versioncontrol
 def get_neutrino_mc(p_i, e_i, nu_energy="MC_INCOMING_ENERGY"):
-    return get_4vec_base(p_i, e_i, nu_energy)
-
+    return get_neutrino_base(p_i, e_i, nu_energy)
 
 
 def make_kine_neutron(p_i, e_i):
     #Passed an event number and particle index, generate a kinematic neutron
-
+    return
 
 ######################################################################
 
@@ -406,6 +411,16 @@ def ParseEvents(start, end, tree_handle):
 
 
 if __name__ == "__main__":
+    func = fill_event
+    evts = EventParser(0, testfile.filesize, IO.tree)
+
+    #Initialize testfile
+    IO.recreate_testfile()
+    #Boot the thread manager with the current tree
+    Parallel = ThreadManager(n_processes=8)
+
+    #Run the test
+    Parallel.run(func, evts, ParallelPool=Pool)
 
     #MODEL FOR PARALLEL PROGRAMMING
     #OUTPUT LIST = FUNCTION MAPPED OVER (LIST OF EVENT OBJECTS)

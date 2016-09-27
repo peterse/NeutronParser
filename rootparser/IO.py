@@ -5,9 +5,14 @@ conventions for finding specific values in the tree
 
 import rootpy.ROOT as ROOT
 import rootpy
-import maketestfiles as testfile
+
 #import ROOT
 import os
+import sys
+
+#Debugging
+sys.path.append("/home/epeters/NeutronParser/tests")
+import maketestfiles as testfile
 #FIXME: Why can't I import exceptions??
 
 ######################################################################
@@ -16,6 +21,7 @@ import os
 #File managers for testing parallel returns
 global_f = None #IO filehandle
 tree = None # tree handle
+subtrees = []
 dummyIO = None #IO file wrapper objecct
 
 ######################################################################
@@ -30,6 +36,30 @@ def recreate_testfile():
     tree = dummyIO.list_of_trees[0]
     tree.GetEvent()
     return
+
+#Sub-Tree splitting:
+
+def split_file():
+    #Split the main TTree of a Rootfile and distribute it
+    #Populates the global list 'subtrees' with handles of smaller tree types
+    global subtrees
+
+    return None
+
+def get_subtree(arg):
+    #When a process asks for a tree, give it one through this method
+    global tree, subtrees
+    #TODO: How will we distribute subtrees among preocesses?
+
+    #Do things with sub-trees
+    if tree:
+        return tree
+    else:
+        raise IOError("I/O tree was not generated")
+
+
+######################################################################
+
 
 class RootFileManager:
     """Class for parsing a ROOT file and creating py objects that parallel
@@ -120,13 +150,14 @@ lookup_dct = {
             "MC_PART_ID": "mc_FSPartPDG",
             "MC_INCOMING_PART": "mc_incoming",
             "MC_INCOMING_ENERGY": "mc_incomingE",
+            "MC_VTX":  "mc_vtx",
 
             "DATA_PART_XYZ_PREFIX": "derp2",
             "DATA_PART_E": "derp",
             "DATA_PART_ID": None,
             "DATA_INCOMING_PART": None,
 
-
+            "RECON_VTX": "CCQEAntiNuTool_vtx"
             }
 
 #Ordered list of ROOT file-type
