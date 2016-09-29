@@ -15,7 +15,7 @@ MC_filename = "MC_dummy.root"
 DATA_filename = "DATA_dummy.root"
 treename = "test"
 #testfile-specific attributes
-filesize = 100000
+filesize = 10000
 
 #Postcondition: MC_dummy.root will be recreated
 #kwargs:

@@ -5,6 +5,7 @@ conventions for finding specific values in the tree
 
 import rootpy.ROOT as ROOT
 import rootpy
+from rootparser_exceptions import log
 
 #import ROOT
 import os
@@ -82,26 +83,30 @@ def file_exists(f):
     return True
 
 #TODO:
-def get_event_branch(f):
-    #Passed a filehandle, return a string for its 'event' branch
+def get_event_branch(tree):
+    #Passed a treehandle, return a string for its 'event' branch
+
+    #Make sure our supposed event branch exists
     return "event"
 
 def make_cuts_lst(T, N):
     #Divide T into N segments
     #return a list of cut indices
+    if N > T:
+        #Special case: Return a valid list of fewer entries than requested...
+        N = T
     rem = T % N
-    dn = int(math.floor(T) / N)
-    out = [ i for i in range(0, T, dn) ]
-    out[-1] = out[-1] + rem
+    dn = int(math.floor(T) / N)         #distance between each cut
+    out = [ i*dn for i in range(N ) ]
     return out
 
-def split_file(src, target, N, path=None, dest=None):
-    #Split the main TTree of a Rootfile and distribute it
+def split_file(src, N, path=None, dest=None):
+    #Split the main TTree of a Rootfile and distribute it into N different files
     #Populates the global list 'subtrees' with handles of smaller tree types
     #Input: path, src: where we're splitting from
     #       dest, target: where the result is written
     #       N - the number of 'subtrees' we want == (N_cuts + 1)
-    #Return: path, filename of a populated rootfile
+    #Return: list of 'path/filename' for N files created
     global subtrees, tree
 
     #Assume we're in the current directory
@@ -124,46 +129,41 @@ def split_file(src, target, N, path=None, dest=None):
             raise IOError("Bad file path at %s/%s - could not enter file '%s'" % (path, src, src))
 
     #Make sure the destination is valid
+    #User must handle cleanup! We have no idea the contesxt of their dest
     if not path_exists(dest):
         raise IOError("Bad destination at %s - Could not enter directory" % dest)
-    #TODO: handle overwritting target?
 
 
-    #Parse the current rootfile and divide it up
-    #TODO: How do we handle multiple trees in a file?
 
-    #TODO: What is the
-    #Identify all the trees in our parent file
-    trees = []
-    derp = range(797)
-    cuts_lst = make_cuts_lst(len(derp), 8)
-    print derp
-    for i, __ in enumerate(cuts_lst):
-        if i < len(cuts_lst) -1:
-            print derp[cuts_lst[i]:cuts_lst[i+1]]
-    #print make_cuts_lst(49, 8)
-    return
-
-
+    #Parse the current rootfile and divide its trees up
     with rootpy.io.root_open(src) as s:
-        with rootpy.io.root_open(target, "recreate") as t:
-            for path, dirs, obj_lst in s.walk():
-                for name in obj_lst:
-                    handle = s.Get(name)
-                    if type(handle) is rootpy.tree.tree.Tree:
-                        #Copy a slice of the tree from source -> target
-                        #FIXME: Get a standardized TreeTemplate for model= kwarg
-                        copied = handle.CopyTree("event<20")
-                        t.write()
-
-
-
-    #Divide the tree(s)
-    #for t in get_trees(fh)
-
-
-
-    return None
+        fnames = []
+        for path, dirs, obj_lst in s.walk():
+            for name in obj_lst:
+                handle = s.Get(name)
+                if type(handle) is rootpy.tree.tree.Tree:
+                    #Where to make our cuts and on which branch
+                    cuts = make_cuts_lst(handle.GetEntries(), N)
+                    evt_str = get_event_branch(handle)
+                    with cd(dest):
+                        #Working in destination directory now
+                        for i in range(len(cuts)):
+                            #FIXME: generate a filename
+                            fname = str(i) + ".root"
+                            if i == len(cuts) - 1:
+                                cutstring = "%s<=%s" % (cuts[i], evt_str)
+                            else:
+                                cutstring = "%s<=%s&&%s<%s" % (cuts[i], evt_str, evt_str, cuts[i+1])
+                            log.debug("Generating %s with %s" % (fname, cutstring))
+                            with rootpy.io.root_open(fname, "recreate") as t:
+                                #Build a copy tree in the context of j.root
+                                #FIXME: Get a standardized TreeTemplate for model= kwarg
+                                copied = handle.CopyTree(cutstring)
+                                t.write()
+                                #Add filename upon successful write
+                                fnames.append("%s/%s" % (dest, fname))
+    #Return a list of full filenames/paths
+    return fnames
 
 def get_tmp_dir():
     #TODO:
@@ -325,12 +325,6 @@ def versioncontrol(func):
         return func(*args, **kwargs)
 
     return substitute_and_call
-
-
-
-
-
-
 
 if __name__ == "__main__":
     pass
