@@ -9,7 +9,7 @@ import rootpy
 #import ROOT
 import os
 import sys
-
+import math
 #Debugging
 sys.path.append("/home/epeters/NeutronParser/tests")
 import maketestfiles as testfile
@@ -58,23 +58,108 @@ def get_subtree(arg):
 ######################################################################
 #Sub-Tree splitting:
 
-def split_file(f):
+def path_exists(path):
+    #passed a path to a rootfile and the filename, check that both are valid
+    try:
+        with cd(path) as d:
+            pass
+    except:
+        #FIXME: what's the error I'm looking for?
+        print sys.exc_info()[0]
+        return False
+        sys.exit()
+
+
+    return True
+
+def file_exists(f):
+    #try to find the file in the current context
+    try:
+        rootpy.io.root_open(f)
+    except rootpy.io.DoesNotExist:
+        return False
+        #raise IOError("root file ")
+    return True
+
+#TODO:
+def get_event_branch(f):
+    #Passed a filehandle, return a string for its 'event' branch
+    return "event"
+
+def make_cuts_lst(T, N):
+    #Divide T into N segments
+    #return a list of cut indices
+    rem = T % N
+    dn = int(math.floor(T) / N)
+    out = [ i for i in range(0, T, dn) ]
+    out[-1] = out[-1] + rem
+    return out
+
+def split_file(src, target, N, path=None, dest=None):
     #Split the main TTree of a Rootfile and distribute it
     #Populates the global list 'subtrees' with handles of smaller tree types
-    #Input: filename
+    #Input: path, src: where we're splitting from
+    #       dest, target: where the result is written
+    #       N - the number of 'subtrees' we want == (N_cuts + 1)
+    #Return: path, filename of a populated rootfile
     global subtrees, tree
+
+    #Assume we're in the current directory
+    if path == None:
+        path = os.getcwd()
+    if dest == None:
+        dest = os.getcwd()
 
     #Make the temporary file in temp
     tmp = get_tmp_dir()
 
+
+
+    #Make sure the source file and its path are valid
+    if not path_exists(path):
+        raise IOError("Bad path at %s - Could not enter directory" % path)
+
+    with cd(path) as d:
+        if not file_exists(src):
+            raise IOError("Bad file path at %s/%s - could not enter file '%s'" % (path, src, src))
+
+    #Make sure the destination is valid
+    if not path_exists(dest):
+        raise IOError("Bad destination at %s - Could not enter directory" % dest)
+    #TODO: handle overwritting target?
+
+
     #Parse the current rootfile and divide it up
     #TODO: How do we handle multiple trees in a file?
 
-    #Open the file:
-    #FIXME
-    fh = None
+    #TODO: What is the
+    #Identify all the trees in our parent file
+    trees = []
+    derp = range(797)
+    cuts_lst = make_cuts_lst(len(derp), 8)
+    print derp
+    for i, __ in enumerate(cuts_lst):
+        if i < len(cuts_lst) -1:
+            print derp[cuts_lst[i]:cuts_lst[i+1]]
+    #print make_cuts_lst(49, 8)
+    return
+
+
+    with rootpy.io.root_open(src) as s:
+        with rootpy.io.root_open(target, "recreate") as t:
+            for path, dirs, obj_lst in s.walk():
+                for name in obj_lst:
+                    handle = s.Get(name)
+                    if type(handle) is rootpy.tree.tree.Tree:
+                        #Copy a slice of the tree from source -> target
+                        #FIXME: Get a standardized TreeTemplate for model= kwarg
+                        copied = handle.CopyTree("event<20")
+                        t.write()
+
+
+
     #Divide the tree(s)
-    for t in get_trees(fh)
+    #for t in get_trees(fh)
 
 
 
@@ -83,16 +168,34 @@ def split_file(f):
 def get_tmp_dir():
     #TODO:
     #Use current path to find location of tmp?
-    pwd = os.get_cwd()
+    pwd = os.getcwd()
 
 def get_trees(fh):
     #TODO:
     #Passed an active filehandle, put active TTrees into a list
 
+    return
+
 def divide_tree(N_PIPELINES):
     #Take the global tree handle and distribute it into global subtree list
     #Create a total of N_PIPELINES subtrees
     global tree, subtrees
+
+
+######################################################################
+class cd:
+    """Context management for directory changes"""
+    def __init__(self, new_path):
+        self.new_path = os.path.expanduser(new_path)
+
+    def __enter__(self):
+        #Change to the argument directory
+        self.saved_path = os.getcwd()
+        os.chdir(self.new_path)
+
+    def __exit__(self, typ, val, traceback):
+        #Go back to the original directory
+        os.chdir(self.saved_path)
 
 ######################################################################
 

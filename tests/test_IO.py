@@ -12,17 +12,8 @@ import maketestfiles as testfile
 import ROOT
 import rootpy.ROOT as rROOT
 import IO
+import os       #getcwd()
 
-
-def recreate_testfile():
-    global dummyIO, tree
-    testfile.generate_MC()
-    dummyIO = IO.RootIOManager(testfile.MC_filename)
-    #grab the test-tree
-    tree = dummyIO.list_of_trees[0]
-    tree.GetEvent()
-    time.sleep(1)
-    return
 
 def get_ROOT_tree(filename, treename):
     f = ROOT.TFile.Open(filename, "read")
@@ -38,19 +29,21 @@ class IOTest(unittest.TestCase):
 
     #Test context management for rootfiles
     def test_open_file(self):
-        global RootIO
-        with RootIO as fh:
+        global dummyIO
+        with dummyIO as fh:
             pass
 
     #test find-trees utility
     def test_get_list_of_trees(self):
-        global RootIO
+        global dummyIO
         #Should find trees:
-        self.assertTrue(any(RootIO.list_of_trees))
+        self.assertTrue(any(dummyIO.list_of_trees))
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     def test_testfile(self):
         #test the file IO using different access methods
+        #pass
+        return
 
         #pyROOT
         tree = get_ROOT_tree(testfile.MC_filename, testfile.treename)
@@ -74,11 +67,14 @@ class IOTest(unittest.TestCase):
             if pair[0] != pair[1]:
                 print pair
 
+    def test_filesplit(self):
+        #Attempt to split a file's trees using the IO.
+        IO.split_file(testfile.MC_filename, "splitfile.root", testfile.filesize)
+
 
 
 if __name__ == "__main__":
     #Initialize some globals to play with
-    RootIO = IO.RootIOManager(testfile.MC_filename)
     dummyIO = IO.RootIOManager(testfile.MC_filename)
     tree = dummyIO.list_of_trees[0]
     tree.GetEvent()
