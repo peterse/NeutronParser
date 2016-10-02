@@ -80,21 +80,30 @@ class IOTest(unittest.TestCase):
         T = random.randint(0, 1000)
         for x in [ 3, 8, 17, T, T+1]:
             cuts = IO.make_cuts_lst(T, x)
-            if x < T:
-                self.assertEqual(len(cuts), x)
-            else:
-                self.assertEqual(len(cuts), T)
+            self.assertEqual(len(cuts), x)
 
+    #
     def test_filesplit(self):
         #Attempt to split a file's trees using the IO.
         tmp = "%s/tmp" % os.getcwd()
+        N = 8
         file_lst = IO.split_file(testfile.MC_filename, 8, dest=tmp)
-        for f in file_lst+["DERP"]:
+        self.assertEqual(N, len(file_lst))
+        for f in file_lst:
             try:
                 rootpy.io.root_open(f)
             except rootpy.ROOTError as e:
                 print e
-                raise RootFileError
+                raise RootFileError("File %s could not be opened")
+
+    def test_get_next_tree(self):
+        #check the eponymous funtion
+        count = 0
+        with rootpy.io.root_open(testfile.MC_filename) as fh:
+            trees = IO.get_next_tree(fh)
+            for tree in trees:
+                count += 1
+        self.assertEqual(count, testfile.n_trees)
 
 if __name__ == "__main__":
     #Initialize some globals to play with

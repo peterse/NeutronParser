@@ -18,7 +18,7 @@ import maketestfiles as testfile
 from parallel import ThreadManager
 from multiprocessing import Pool
 
-"""MC.py - Root tools for interfacing with an MC-generated Minerva tree"""
+"""event.py - Root tools for interfacing with an MC-generated Minerva tree"""
 
 #how do we want to design events around a filetype using low function overhead?
 #   1. class inheritance: Subclass an event to MC_Event, DATA_Event... ugh
@@ -65,6 +65,7 @@ class Event:
         return str(self.particle_lst)
 
     # # # Container methods # # #
+    #TODO: Scrub these scrubs?
     def __len__(self):
         return len(self.particle_lst)
 
@@ -81,25 +82,23 @@ class Event:
     def __iter__(self):
         return iter(self.particle_lst)
 
-    def get_neutrons(self):
-
-        return
-
-    def get_protons(self):
-
-        return
-
-    def get_leptons(self):
-
-        return
-
-
     def __iadd__(self, particle):
         #define addition
         self.particle_lst.append(particle)
         return self
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def ParseEvents(filepath):
+    #Highest level processing: given a filename, generate and fill events
+
+    with rootpy.io.root_open(filepath) as fh:
+        #fetch our subtrees and put it to the global namespace
+        for subtree in IO.get_next_tree(fh)
+        IO.put_subtree(os.getpid(), subtree)
+        evts = evts = event.EventParser(0, testfile.filesize, IO.tree)
+
+
+
 
 #Global-scoped method for parsing events
 #Will modify the 'Event' object passed into it
@@ -408,11 +407,6 @@ def EventParser(start, end, tree_handle):
     #     #print "Iteration %i" % start
     #     yield Event(start, tree_handle)
     #     start += 1
-
-#Crawl through the tree and run Event's main routine
-def ParseEvents(start, end, tree_handle):
-
-    return
 
 
 

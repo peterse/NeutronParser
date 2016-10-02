@@ -11,6 +11,7 @@ from rootparser_exceptions import log
 import os
 import sys
 import math
+import shutil   #rmtree
 #Debugging
 sys.path.append("/home/epeters/NeutronParser/tests")
 import maketestfiles as testfile
@@ -22,7 +23,7 @@ import maketestfiles as testfile
 #File managers for testing parallel returns
 global_f = None #IO filehandle
 tree = None # tree handle
-subtrees = []
+subtrees = {}
 dummyIO = None #IO file wrapper objecct
 
 
@@ -38,11 +39,18 @@ def recreate_testfile():
     #grab the test-tree
     tree = dummyIO.list_of_trees[0]
     tree.GetEvent()
+    #flush the tmp folder
+    shutil.rmtree(testfile.TMP)
+    os.mkdir(testfile.TMP)
     return
 
 
 
-
+def put_subtree(pid, subtree):
+    #When a process starts, it needs to store its respective tree globally
+    #store it in a dct under the callers PID
+    global tree, subtrees
+    subtrees[pid] = None
 
 def get_subtree(arg):
     #When a process asks for a tree, give it one through this method
@@ -55,6 +63,16 @@ def get_subtree(arg):
     else:
         raise IOError("I/O tree was not generated")
 
+def get_next_tree(fh):
+    #Given a  rootfile handle, generate the next tree object
+    #Precondition: fh must be an active (open) file handle
+    #Warning: (I think) this must be fully exhausted in the file context...
+    for path, dirs, obj_lst in fh.walk():
+        for name in obj_lst:
+            handle = fh.Get(name)
+            if type(handle) is rootpy.tree.tree.Tree:
+                yield handle
+                continue    #move onto the next tree
 
 ######################################################################
 #Sub-Tree splitting:
@@ -83,6 +101,7 @@ def file_exists(f):
     return True
 
 #TODO:
+
 def get_event_branch(tree):
     #Passed a treehandle, return a string for its 'event' branch
 
@@ -92,12 +111,28 @@ def get_event_branch(tree):
 def make_cuts_lst(T, N):
     #Divide T into N segments
     #return a list of cut indices
+
+    #This indicates a broken tree; pass it up the pipe
+    #FIXME: where do we handle this?
+    if T == 0:
+        return [0 for i in range(N)]
+
     if N > T:
-        #Special case: Return a valid list of fewer entries than requested...
+
+        diff = N - T
         N = T
+    else:
+        diff = 0
+
     rem = T % N
     dn = int(math.floor(T) / N)         #distance between each cut
     out = [ i*dn for i in range(N ) ]
+    #Special case: Return a list with repeating cut indices for N > T:
+    #eg N = 8, T = 5 -> out = [0, 1, 2, 3, 4, 5, 5, 5]
+    if diff:
+        last = out[-1]
+        for i in range(diff):
+            out.append(last)
     return out
 
 def split_file(src, N, path=None, dest=None):
@@ -118,8 +153,6 @@ def split_file(src, N, path=None, dest=None):
     #Make the temporary file in temp
     tmp = get_tmp_dir()
 
-
-
     #Make sure the source file and its path are valid
     if not path_exists(path):
         raise IOError("Bad path at %s - Could not enter directory" % path)
@@ -133,21 +166,23 @@ def split_file(src, N, path=None, dest=None):
     if not path_exists(dest):
         raise IOError("Bad destination at %s - Could not enter directory" % dest)
 
-
-
     #Parse the current rootfile and divide its trees up
+    treecount = 0           #used for creating output filenames once.
     with rootpy.io.root_open(src) as s:
         fnames = []
         for path, dirs, obj_lst in s.walk():
             for name in obj_lst:
                 handle = s.Get(name)
                 if type(handle) is rootpy.tree.tree.Tree:
-                    #Where to make our cuts and on which branch
-                    cuts = make_cuts_lst(handle.GetEntries(), N)
+                    treecount += 1
+                    #Where to make our cuts and along which branch
+                    T = handle.GetEntries()
+                    cuts = make_cuts_lst(T, N)
                     evt_str = get_event_branch(handle)
                     with cd(dest):
                         #Working in destination directory now
                         for i in range(len(cuts)):
+                            #Slice trees along each pair of cut indices (uniform across trees)
                             #FIXME: generate a filename
                             fname = str(i) + ".root"
                             if i == len(cuts) - 1:
@@ -155,14 +190,22 @@ def split_file(src, N, path=None, dest=None):
                             else:
                                 cutstring = "%s<=%s&&%s<%s" % (cuts[i], evt_str, evt_str, cuts[i+1])
                             log.debug("Generating %s with %s" % (fname, cutstring))
-                            with rootpy.io.root_open(fname, "recreate") as t:
+                            
+                            #Initialize vs. write-to file
+                            if treecount == 1:
+                                MODE = "recreate"
+                            else:
+                                MODE = "update"
+
+                            with rootpy.io.root_open(fname, MODE) as t:
                                 #Build a copy tree in the context of j.root
                                 #FIXME: Get a standardized TreeTemplate for model= kwarg
                                 copied = handle.CopyTree(cutstring)
                                 t.write()
-                                #Add filename upon successful write
-                                fnames.append("%s/%s" % (dest, fname))
-    #Return a list of full filenames/paths
+                                #Add filename upon first successful write
+                                if treecount == 1:
+                                    fnames.append("%s/%s" % (dest, fname))
+    #Return a list of full path/filename
     return fnames
 
 def get_tmp_dir():

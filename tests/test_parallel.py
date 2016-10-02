@@ -176,10 +176,7 @@ class ParallelTest(unittest.TestCase):
     #Overload the TestCase init; needs to be passed proper initialization args/kwargs
     def __init__(self, *args, **kwargs):
         super( ParallelTest, self).__init__(*args, **kwargs)
-        #refresh the testfile
-        #self.recreate_testfile()
 
-    #Recreate a rootfile that ~may~ have been corrupted
 
     #Diagnostic to shot index, value that do not agree between lists
     #Returns the index range of disagreement (start, end)
@@ -378,7 +375,7 @@ class ParallelTest(unittest.TestCase):
         ref = [2112 for i in range(testfile.filesize)]
         self.assertEqual(IDs, ref, msg="Particle IDs fetched incorrectly")
 
-        #Check that events were indexed properly 
+        #Check that events were indexed properly
         EVTs = [evt.index for evt in evt_lst]
         ref = range(testfile.filesize)
         self.assertEqual(EVTs, ref, msg="Particle events parsed incorrectly")

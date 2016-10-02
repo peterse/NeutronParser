@@ -8,15 +8,19 @@ from rootpy import stl #std library?
 #Local python arrays for ROOT-like pointers
 from array import array
 
+import os
+
 """Module of methods for creating different rootfiles in the current directory"""
 
 #filenames to  be used cross-library
 MC_filename = "MC_dummy.root"
 DATA_filename = "DATA_dummy.root"
 treename = "test"
+treename2 = "test2"
+TMP = os.getcwd() + "/tmp"
 #testfile-specific attributes
 filesize = 10000
-
+n_trees = 2
 #Postcondition: MC_dummy.root will be recreated
 #kwargs:
 #   lightweight - if True, only 'event' will be filled in the primary tree
@@ -79,6 +83,14 @@ def generate_MC(lightweight=False):
         tree.fill()
 
     tree.write()
+
+    #second tree for testing tree parsing
+    tree2 = Tree(treename2, model=TreeTemplate)
+    tree2.create_branches({
+                            "event": "I"
+                            })
+    tree2.write()
+
     f.close()
 
 

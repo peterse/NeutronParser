@@ -15,9 +15,9 @@ import math
 #Default mode for paralellization: process-parallel
 PARALLEL_POOL = Pool
 THREADING = True # do we want to implement threading?
+N_THREADS = 8    # global description of the number of threads
 
 #TODO do we need a wrapper for many-argument functions? What is the model for parallelization over multiple arguments?
-
 
 #Parallel test #2 - lock instead of queue
 #A global lock is inherited by spawned processes instead of pickled
@@ -26,7 +26,7 @@ lock = None
 class ThreadManager:
     def __init__(self, n_processes=None):
         #A shared queue to be accessed as needed by external functions
-        #self.queue = Queue()
+        self.Q = Queue()
         self.count = 0
 
         #default number of processes is CPU count
@@ -40,6 +40,11 @@ class ThreadManager:
     def init_lock(L):
         global lock
         lock = L
+
+    def loadQ(self, lst):
+        #load the queue from a lst of objects
+        for s in lst:
+            self.Q.put(s)
 
     def run(self, func, target, ParallelPool=PARALLEL_POOL):
         #strictly serial
@@ -144,10 +149,10 @@ def do_thing(x,y,z):
 
 def do_thing_with_lock(x):
     return x + 1
-    current = Parallel.queue.get()
+    current = Parallel.Q.get()
     print current
     current +=1
-    Parallel.queue.put(current)
+    Parallel.Q.put(current)
     return current
 
 def f(q):
