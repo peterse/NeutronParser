@@ -10,7 +10,7 @@ from timer import Timer
 import maketestfiles as testfile
 import IO
 
-from rootparser_exceptions import RootFileError
+from rootparser_exceptions import RootFileError, log
 #For IO tools
 import ROOT
 import rootpy.ROOT as rROOT
@@ -104,10 +104,12 @@ class IOTest(unittest.TestCase):
             for tree in trees:
                 count += 1
         self.assertEqual(count, testfile.n_trees)
+        log.info("Counted %i trees in file %s" % (count, testfile.MC_filename) )
+
 
 if __name__ == "__main__":
     #Initialize some globals to play with
-    IO.recreate_testfile()
+    testfile.recreate_testfile()
     dummyIO = IO.RootIOManager(testfile.MC_filename)
     tree = dummyIO.list_of_trees[0]
     tree.GetEvent()

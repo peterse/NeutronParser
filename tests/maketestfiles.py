@@ -9,6 +9,9 @@ from rootpy import stl #std library?
 from array import array
 
 import os
+import IO
+import shutil   #rmtree
+
 
 """Module of methods for creating different rootfiles in the current directory"""
 
@@ -19,28 +22,36 @@ treename = "test"
 treename2 = "test2"
 TMP = os.getcwd() + "/tmp"
 #testfile-specific attributes
-filesize = 10000
+filesize = 1000
 n_trees = 2
 #Postcondition: MC_dummy.root will be recreated
 #kwargs:
 #   lightweight - if True, only 'event' will be filled in the primary tree
 
 
+#FIXME: temporary home for testfile
+def recreate_testfile():
+    #Recreate the testfile and reassign global handles
+    global dummyIO, tree, global_f
+    generate_MC()
+    dummyIO = IO.RootIOManager(MC_filename)
+    #grab the test-tree
+    tree = dummyIO.list_of_trees[0]
+    tree.GetEvent()
+    #flush the tmp folder
+    shutil.rmtree(TMP)
+    os.mkdir(TMP)
+    return
 
 def generate_MC(lightweight=False):
     #Recreate the MC testfile
     print "Generating file %s" % MC_filename
     f = root_open(MC_filename, "recreate")
 
-    #A template tree object to allow
-    class TreeTemplate(TreeModel):
-
-        #Specify branches of special types ahead of time
-        mc_vtx = stl.vector(float)
 
 
 
-    tree = Tree(treename, model=TreeTemplate)
+    tree = Tree(treename, model=IO.TreeTemplate)
 
     #Branches are customized objects based on dct keys
     tree.create_branches({
@@ -53,6 +64,7 @@ def generate_MC(lightweight=False):
                             "mc_FSPartPDG": "I",
                             "mc_incoming": "I",
                             "mc_incomingE": "F",
+                            "mc_vtx": "F:F"
                             })
 
     for j in xrange(filesize):
@@ -76,16 +88,17 @@ def generate_MC(lightweight=False):
         tree.mc_incomingE = p[4]        #neutrino energy
 
         #vtx
-        tree.mc_vtx.clear()
-        for vtx_dim in vtx:
-            tree.mc_vtx.push_back(vtx_dim)
-
+        # tree.mc_vtx.clear()
+        # for vtx_dim in vtx:
+        #     tree.mc_vtx.push_back(vtx_dim)
+        tree.mc_vtx[0] = 1
+        tree.mc_vtx[1] = 2
         tree.fill()
 
     tree.write()
 
     #second tree for testing tree parsing
-    tree2 = Tree(treename2, model=TreeTemplate)
+    tree2 = Tree(treename2, model=IO.TreeTemplate)
     tree2.create_branches({
                             "event": "I"
                             })

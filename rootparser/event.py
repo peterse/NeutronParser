@@ -11,12 +11,16 @@ import os
 
 #File management
 import IO
+import rootpy
 
 #Debugging
 sys.path.append("/home/epeters/NeutronParser/tests")
 import maketestfiles as testfile
 from parallel import ThreadManager
 from multiprocessing import Pool
+
+#logging
+from rootparser_exceptions import log
 
 """event.py - Root tools for interfacing with an MC-generated Minerva tree"""
 
@@ -41,15 +45,6 @@ class Event:
         self.particles_extra = []
         self.index = index          #event number
         self.datatype = datatype
-
-        #Manage I/O and event distribution
-        self.i_subtree = self.get_subtree_index
-        #TODO:
-        #Template for our subtree:
-        #we don't actually want a private tree handle...
-        self.tree = IO.subtrees[self.i_subtree]     #active TTree
-        self.tree = None
-
 
         self.n_parts = 0
         self.P = [0, 0, 0, 0]       #Total event momentum
@@ -91,20 +86,32 @@ class Event:
 def ParseEvents(filepath):
     #Highest level processing: given a filename, generate and fill events
 
+    pid = os.getpid()
+    log.info("PID %s parsing %s" % (pid, filepath))
+
     with rootpy.io.root_open(filepath) as fh:
-        #fetch our subtrees and put it to the global namespace
-        for subtree in IO.get_next_tree(fh)
-        IO.put_subtree(os.getpid(), subtree)
-        evts = evts = event.EventParser(0, testfile.filesize, IO.tree)
+        for subtree in IO.get_next_tree(fh):
+            #fetch our subtrees and put them to the global namespace
+            IO.put_subtree(pid, subtree)
 
+            #Set up parsing for this subtree
+            #evt indices are local to the 'subfile' - always start at 0
+            T = subtree.GetEntries()
+            #evts = EventParser(0, T, IO.get_subtree())
+            evts = EventParser(0, 10, IO.get_subtree())
+            #fill the events
+            processed = map(fill_event, evts)
 
-
-
+            for evt in processed:
+                print evt.vtx
 #Global-scoped method for parsing events
 #Will modify the 'Event' object passed into it
 def fill_event(evt_obj):
 
     #Attempt to fill an event
+
+    #IO: This should be the only call to GetEvent for this fill
+    b0 = IO.get_subtree().GetEvent(evt_obj.index)
 
     #IO: Get number of particles
     b1 = fetch_n_parts_mc(evt_obj)
@@ -125,24 +132,20 @@ def fill_event(evt_obj):
 @versioncontrol
 def fetch_n_parts_mc(evt, nparts_leaf="MC_N_PART"):
     #Get the number of particles in this event
-    while True:
-        try:
-            k = IO.get_subtree(0).GetEvent(evt.index) #FIXME: nullified by subtreeing
-            out = int(IO.get_subtree(0).GetLeaf(nparts_leaf).GetValue())
+    try:
+        out = int(IO.get_subtree().GetLeaf(nparts_leaf).GetValue())
 
-            #FIXME: Eventually, only assign
-            evt.n_parts = out
-            return True
+        #FIXME: Eventually, only assign
+        evt.n_parts = out
+        return True
 
-        except IOError:
-            #get_subtree(0) failed
-            os._exit()
+    except IOError:
+        #get_subtree() failed
+        os._exit()
 
-        except:
-            #There was a clash for access, take a nap!:
-            time.sleep(.001)
-        else:
-            pass
+    else:
+        pass
+
 
 def fetch_vec_base(e_i, leafname):
     #Return the value of a general leaf/branch
@@ -150,14 +153,19 @@ def fetch_vec_base(e_i, leafname):
     out = [0, 0, 0, 0]
     #FIXME: Are we sure this is the general order of vector components?
     for i, dim in enumerate([ "x", "y", "z", "t"]):
-        out[i] = IO.get_subtree(0).GetLeaf(leafname).GetValue(i)
+        print leafname
+        print "PING"
+        out[i] = IO.get_subtree().GetLeaf(leafname).GetValue(i)
+        print IO.get_subtree().GetLeaf(leafname).GetValue(i)
 
     return out
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def get_vtx(e_i, datatype=0):
+    print "dtype", datatype
     if datatype == 0:
         return get_vtx_mc(e_i)
+        print "mc"
     elif datatype == 1:
         return get_vtx_data(e_i)
     elif datatype == 2:
@@ -167,6 +175,7 @@ def get_vtx(e_i, datatype=0):
 @versioncontrol
 def get_vtx_mc(e_i, vtx_branch="MC_VTX"):
     #Passed an event index, return the mc VTX "4-vec"
+    print "inside mc"
     return fetch_vec_base(e_i, vtx_branch)
 @versioncontrol
 def get_vtx_data(e_i, vtx_branch="RECON_VTX"):
@@ -195,8 +204,10 @@ def fill_parts(evt):
     #FIXME: we're getting a vertex from MC OR DATA - resolve conflicts?
     mc_vtx = get_vtx(evt.index, datatype=0)
     recon_vtx = get_vtx(evt.index, datatype=2)
-    if True:       #FIXME: condition for acceptable vertex discrepancy...
-        evt.vtx = recon_vtx
+    if True:
+         #FIXME: condition for acceptable vertex discrepancy...
+         #FIXME: Not working right now- weirdness w TLorentzVector?
+        evt.vtx = mc_vtx
 
     #Add the blobs
 
@@ -228,8 +239,7 @@ def calculate_parts(evt):
     #attributes to find dereived quantities
 
     #Particle mass
-    for particle in evt.particle_lst:
-
+    for part in evt.particle_lst:
         good_calc = calculate_attrs(part)
 
     #Get tracked particles' total momentum
@@ -295,9 +305,9 @@ def get_name_base(p_i, inc, nu_branch, id_branch):
     if inc:
         #nu doesn't use 'GetValue(p_i)' since it has its own branch
         #FIXME:
-        evt_id = IO.get_subtree(0).GetLeaf(nu_branch).GetValue()
+        evt_id = IO.get_subtree().GetLeaf(nu_branch).GetValue()
     else:
-        evt_id = IO.get_subtree(0).GetLeaf(id_branch).GetValue(p_i)
+        evt_id = IO.get_subtree().GetLeaf(id_branch).GetValue(p_i)
 
     return int(evt_id), dR.PDGTools.decode_ID(evt_id, quiet=True) #(ID, name)
 
@@ -339,12 +349,10 @@ def get_4vec_base(p_i, e_i, xyz_prefix, energy):
     #Put momenta in indices 1-3
     for dim_i, dim in enumerate(["x", "y", "z"]):
         leaf = xyz_prefix + dim
-        IO.get_subtree(0).GetEvent(e_i)  #FIXME: not necessary with subtreeing
-        out[dim_i+1] = IO.get_subtree(0).GetLeaf(leaf).GetValue(p_i)
+        out[dim_i+1] = IO.get_subtree().GetLeaf(leaf).GetValue(p_i)
 
     #Put energy at index 0
-    IO.get_subtree(0).GetEvent(e_i)
-    out[0] = IO.get_subtree(0).GetLeaf(energy).GetValue(p_i)
+    out[0] = IO.get_subtree().GetLeaf(energy).GetValue(p_i)
 
     return np.array(out)
 
@@ -381,8 +389,7 @@ def get_neutrino_base(p_i, e_i, nu_energy):
     #Get the neutrino name information
     nu.ID, nu.name = get_name(p_i, nu.inc)
     #Fill in what we can about energy - momentum isn't available!
-    IO.get_subtree(0).GetEvent(e_i)
-    E = IO.get_subtree(0).GetLeaf(nu_energy).GetValue()
+    E = IO.get_subtree().GetLeaf(nu_energy).GetValue()
     nu.P = [E, 0, 0, 0]
 
     #Return the entire particle object

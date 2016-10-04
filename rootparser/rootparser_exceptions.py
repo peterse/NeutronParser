@@ -3,7 +3,7 @@ import os #_exit()
 
 #Setting general logging preferences
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(message)s')
 
 import sys
 from rootpy import log
@@ -40,7 +40,7 @@ class RootFileError(Exception):
 #Logging and Error Message Suppression
 
 #Set suppression to < INFO
-log.setLevel(log.WARNING)
+log.setLevel(log.INFO)
 
 #Filter GetBasket warnings for access collisions
 import logging

@@ -7,14 +7,18 @@ import rootpy.ROOT as ROOT
 import rootpy
 from rootparser_exceptions import log
 
+#Tree templating & functions
+from rootpy.tree import Tree, TreeModel
+from rootpy import stl #std library?
+
+
 #import ROOT
 import os
 import sys
 import math
-import shutil   #rmtree
+
 #Debugging
 sys.path.append("/home/epeters/NeutronParser/tests")
-import maketestfiles as testfile
 #FIXME: Why can't I import exceptions??
 
 ######################################################################
@@ -24,48 +28,38 @@ import maketestfiles as testfile
 global_f = None #IO filehandle
 tree = None # tree handle
 subtrees = {}
-dummyIO = None #IO file wrapper objecct
 
 
 
 ######################################################################
 
-#FIXME: temporary home for testfile
-def recreate_testfile():
-    #Recreate the testfile and reassign global handles
-    global dummyIO, tree, global_f
-    testfile.generate_MC()
-    dummyIO = RootIOManager(testfile.MC_filename)
-    #grab the test-tree
-    tree = dummyIO.list_of_trees[0]
-    tree.GetEvent()
-    #flush the tmp folder
-    shutil.rmtree(testfile.TMP)
-    os.mkdir(testfile.TMP)
-    return
 
 
 
 def put_subtree(pid, subtree):
     #When a process starts, it needs to store its respective tree globally
     #store it in a dct under the callers PID
-    global tree, subtrees
-    subtrees[pid] = None
+    global subtrees
+    subtrees[pid] = subtree
 
-def get_subtree(arg):
+def get_subtree():
     #When a process asks for a tree, give it one through this method
-    global tree, subtrees
-    #TODO: How will we distribute subtrees among preocesses?
+    #Expects to be called within the context of a process
+    global subtrees
+    out = subtrees.get(os.getpid())
 
-    #Do things with sub-trees
-    if tree:
-        return tree
+    if out:
+        return out
     else:
-        raise IOError("I/O tree was not generated")
+        raise IOError("PID %s tree not found" % str(pid))
+
+
+        #raise IOError("I/O tree was not generated")
 
 def get_next_tree(fh):
     #Given a  rootfile handle, generate the next tree object
     #Precondition: fh must be an active (open) file handle
+    #FIXME:
     #Warning: (I think) this must be fully exhausted in the file context...
     for path, dirs, obj_lst in fh.walk():
         for name in obj_lst:
@@ -189,8 +183,8 @@ def split_file(src, N, path=None, dest=None):
                                 cutstring = "%s<=%s" % (cuts[i], evt_str)
                             else:
                                 cutstring = "%s<=%s&&%s<%s" % (cuts[i], evt_str, evt_str, cuts[i+1])
-                            log.debug("Generating %s with %s" % (fname, cutstring))
-                            
+                            log.info("Generating %s with %s" % (fname, cutstring))
+
                             #Initialize vs. write-to file
                             if treecount == 1:
                                 MODE = "recreate"
@@ -239,6 +233,14 @@ class cd:
     def __exit__(self, typ, val, traceback):
         #Go back to the original directory
         os.chdir(self.saved_path)
+
+######################################################################
+#A template tree object to allow vectors
+class TreeTemplate(TreeModel):
+    """A template for constructing special-object TTrees"""
+    #Specify branches of special types ahead of time
+    mc_vtx = stl.vector(float)
+
 
 ######################################################################
 
@@ -370,4 +372,5 @@ def versioncontrol(func):
     return substitute_and_call
 
 if __name__ == "__main__":
+    ()
     pass

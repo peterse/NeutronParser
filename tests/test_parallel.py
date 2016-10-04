@@ -425,7 +425,7 @@ if __name__ == "__main__":
     #enter read only context
     #print test_parallel_GetEvent_collision()
 
-    IO.recreate_testfile()
+    testfile.recreate_testfile()
     unittest.main()
     #Events = event.EventParser(1,2,tree)
     # t = range(83)
