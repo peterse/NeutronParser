@@ -8,13 +8,14 @@ import rootpy
 from rootparser_exceptions import log
 
 #Tree templating & functions
-from rootpy.tree import Tree, TreeModel
+from rootpy.tree import Tree, TreeModel, FloatArrayCol
 from rootpy import stl #std library?
 
 
 #import ROOT
 import os
 import sys
+import subprocess #call, check_output
 import math
 
 #Debugging
@@ -33,8 +34,13 @@ subtrees = {}
 
 ######################################################################
 
-
-
+def join_all_events(evt_lst):
+    #passed a list of (lists of event objects) concatenate them
+    #This requires reconstruction of event numbers
+    for evt_sublist in evt_lst:
+        print evt_sublist[0].index
+        continue
+    return
 
 def put_subtree(pid, subtree):
     #When a process starts, it needs to store its respective tree globally
@@ -129,12 +135,14 @@ def make_cuts_lst(T, N):
             out.append(last)
     return out
 
-def split_file(src, N, path=None, dest=None):
+def split_file(src, N, path=None, dest=None, recreate=True):
     #Split the main TTree of a Rootfile and distribute it into N different files
     #Populates the global list 'subtrees' with handles of smaller tree types
     #Input: path, src: where we're splitting from
     #       dest, target: where the result is written
     #       N - the number of 'subtrees' we want == (N_cuts + 1)
+    #       recreate - overwrite the files. if False, this will keep the prev
+    #                   files iff there are 'N' of them
     #Return: list of 'path/filename' for N files created
     global subtrees, tree
 
@@ -144,8 +152,15 @@ def split_file(src, N, path=None, dest=None):
     if dest == None:
         dest = os.getcwd()
 
-    #Make the temporary file in temp
-    tmp = get_tmp_dir()
+    #Do a check on N/files before calling it.
+    if recreate == False:
+        with cd(dest):
+            fnames = os.listdir(os.getcwd())
+            N_files = len(fnames)
+            if N_files == N:
+                return ["%s/%s" % (dest, fname) for fname in fnames]
+            else:
+                log.warning("Number of files deos not match N_pipelines; recreateing files...")
 
     #Make sure the source file and its path are valid
     if not path_exists(path):
@@ -234,15 +249,7 @@ class cd:
         #Go back to the original directory
         os.chdir(self.saved_path)
 
-######################################################################
-#A template tree object to allow vectors
-class TreeTemplate(TreeModel):
-    """A template for constructing special-object TTrees"""
-    #Specify branches of special types ahead of time
-    mc_vtx = stl.vector(float)
 
-
-######################################################################
 
 #FIXME: Disentegrate this class and make methods act on globals
 class RootFileManager:

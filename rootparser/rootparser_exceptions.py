@@ -3,7 +3,7 @@ import os #_exit()
 
 #Setting general logging preferences
 import logging
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s[%(pathname)s:%(lineno)d]:%(message)s')
 
 import sys
 from rootpy import log

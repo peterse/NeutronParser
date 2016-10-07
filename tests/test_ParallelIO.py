@@ -72,33 +72,46 @@ class ParallelIOTest(unittest.TestCase):
             log.info("Getting PID:%s subtree from IO.subtrees" % str(PID))
             got = IO.get_subtree()
             self.assertEqual(put, got)
-            for i in subtree.GetListOfBranches():
-                print i
-            subtree.GetEvent(5)
-            print subtree.GetBranch("mc_vtx").FindLeaf("mc_vtx").GetValue(2)
+
         #now: subtrees[PID] = None
 
     def test_divide_and_process(self):
 
-        return
+        #pass
+
         #Divide a testfile and sick the threads on it
         #divide the file into the temporary directory
-        paths = IO.split_file(testfile.MC_filename, parallel.N_THREADS, path=os.getcwd(), dest=testfile.TMP)
-
-        print paths
-        #process the paths in parallel
-        #Parallel.loadQ(paths)
+        paths = IO.split_file(testfile.MC_filename, parallel.N_THREADS, path=os.getcwd(), dest=testfile.TMP, recreate=False)
 
         #explicit function and targets
         func = event.ParseEvents
         args = paths
-        Parallel.run(func, args, ParallelPool=Pool)
+
+        #The successful fill of a file's events yields '0'
+        i = 0
+        Time.start("CPU-ParallelIO OO fill() trial %i" % (i+1) )
+        cpu_out = Parallel.run(func, args, ParallelPool=Pool)
+        #The successful fill of a file's events yields '0'
+        Time.end()
+        all_evts = IO.join_all_events(cpu_out)
+        return
+        # [evt for evt_sublst in cpu_out for evt in evt_sublst]
+
+        #self.assertEqual(fill_good, [0 for i in paths])
+        #Serial func takes in a single filename
+        func = event.ParseEvents
+        args = [testfile.MC_filename]
+
+        Time.start("SerialIO OO fill() trial %i" % (i+1) )
+        serial_out = Parallel.run(func, args, ParallelPool=None)
+        Time.end()
 
 
-                         #Timing
-def args_test(*args):
-    for arg in args:
-        print arg
+        #self.assertEqual(serial_out, all_evts)
+    #Timing
+    def test_TimeParseEvents(self):
+        return
+
 
 if __name__ == "__main__":
 

@@ -43,7 +43,7 @@ class Event:
         self.particle_lst = []      #FIXME: Distinguish 'natural' particles from
                                     #generated ones?
         self.particles_extra = []
-        self.index = index          #event number
+        self.index = index         #event number
         self.datatype = datatype
 
         self.n_parts = 0
@@ -98,12 +98,16 @@ def ParseEvents(filepath):
             #evt indices are local to the 'subfile' - always start at 0
             T = subtree.GetEntries()
             #evts = EventParser(0, T, IO.get_subtree())
-            evts = EventParser(0, 10, IO.get_subtree())
+            evts = EventParser(0, T, IO.get_subtree())
             #fill the events
             processed = map(fill_event, evts)
+            return processed
 
-            for evt in processed:
-                print evt.vtx
+def cap_event(evt_obj):
+    #overwrite the event index with the full range from the original file
+    evt_obj.index = IO.get_subtree().GetLeaf("event").GetValue()         #event number
+    return True
+
 #Global-scoped method for parsing events
 #Will modify the 'Event' object passed into it
 def fill_event(evt_obj):
@@ -122,6 +126,9 @@ def fill_event(evt_obj):
     #CPU: Do calculations within the particles
     #b3 = calculate_parts(evt_obj)
 
+
+    #cap off the event with its actual event number
+    b4 = cap_event(evt_obj)
     #Proper return conditional on successful methods
     if b1 and b2:
         return evt_obj
@@ -153,16 +160,12 @@ def fetch_vec_base(e_i, leafname):
     out = [0, 0, 0, 0]
     #FIXME: Are we sure this is the general order of vector components?
     for i, dim in enumerate([ "x", "y", "z", "t"]):
-        print leafname
-        print "PING"
         out[i] = IO.get_subtree().GetLeaf(leafname).GetValue(i)
-        print IO.get_subtree().GetLeaf(leafname).GetValue(i)
 
     return out
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def get_vtx(e_i, datatype=0):
-    print "dtype", datatype
     if datatype == 0:
         return get_vtx_mc(e_i)
         print "mc"
@@ -175,7 +178,6 @@ def get_vtx(e_i, datatype=0):
 @versioncontrol
 def get_vtx_mc(e_i, vtx_branch="MC_VTX"):
     #Passed an event index, return the mc VTX "4-vec"
-    print "inside mc"
     return fetch_vec_base(e_i, vtx_branch)
 @versioncontrol
 def get_vtx_data(e_i, vtx_branch="RECON_VTX"):
