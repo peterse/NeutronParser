@@ -12,6 +12,7 @@ import os
 #File management
 import IO
 import rootpy
+import histogram as hi
 
 #Debugging
 sys.path.append("/home/epeters/NeutronParser/tests")
@@ -95,6 +96,16 @@ def ParseEvents(filepath):
     pid = os.getpid()
     log.info("PID %s parsing %s" % (pid, filepath))
 
+    #initialize and store histograms
+    export_lst = hi.extend_export_lst(hi.all_export_lst)
+    subhist_dct = init_hist_dct(export_lst)
+    IO.put_subhist(subhist_dct)
+
+    #setup filters
+
+
+
+    #Parse input files
     with rootpy.io.root_open(filepath) as fh:
         for subtree in IO.get_next_tree(fh):
             #fetch our subtrees and put them to the global namespace
@@ -109,10 +120,7 @@ def ParseEvents(filepath):
             processed = map(fill_event, evts)
             return processed
 
-def cap_event(evt_obj):
-    #overwrite the event index with the full range from the original file
-    evt_obj.index = IO.get_subtree().GetLeaf("event").GetValue()         #event number
-    return True
+
 
 #Global-scoped method for parsing events
 #Will modify the 'Event' object passed into it
@@ -195,6 +203,7 @@ def get_vtx_data(e_i, vtx_branch="RECON_VTX"):
 def get_blob(e_i, blob_branch="????"):
     return
 
+
 #FIXME: Different fill methods depending on MC, DATA, RECON
 def fill_parts(evt):
     #Passed an event, instruct its particles to fill from the event index
@@ -245,18 +254,6 @@ def count_blobs(evt):
     #eponymous
     return
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-def calculate_total_P(evt):
-    #For a filled event, find the total 4-vector of the identified particles
-    #To be called before reconstructing
-
-    #Make a list of particle momenta in the event
-    P_lst = [ part.P for part in evt.particle_lst ]
-    #Sum the particle momenta element-wise
-    evt.P = np.sum(P_lst, axis=0)
-
-    return True
-
 def calculate_parts(evt):
     #Passed an event with particles, do strictly-CPU calculations on particle
     #attributes to find dereived quantities
@@ -271,6 +268,16 @@ def calculate_parts(evt):
     good_nu = calculate_neutrino(evt)
     return None
 
+def calculate_total_P(evt):
+    #For a filled event, find the total 4-vector of the identified particles
+    #To be called before reconstructing
+
+    #Make a list of particle momenta in the event
+    P_lst = [ part.P for part in evt.particle_lst ]
+    #Sum the particle momenta element-wise
+    evt.P = np.sum(P_lst, axis=0)
+
+    return True
 
 def calculate_neutrino(evt):
     #Passed an Event object, build on the skeletal nu to get a fully-defined nu
@@ -286,6 +293,19 @@ def calculate_dtheta(evt):
     #   1 neutron 1 blob: return dtheta
     #   >1 neutron
     pass
+
+def make_kine_neutrons(evt):
+    #passed an event, generate an MC and recon neutron, if possible
+    return
+
+def make_blob_neutron(evt):
+    return
+
+def cap_event(evt_obj):
+    #overwrite the event index with the full range from the original file
+    evt_obj.index = IO.get_subtree().GetLeaf("event").GetValue()         #event number
+    return True
+
 ######################################################################
 class Particle:
     """Representation of a particle pulled from a given event"""

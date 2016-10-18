@@ -270,42 +270,9 @@ class MC_N_event:
 
 		return mc_dct
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	def recon_neutrino(self, recon_dct):
-	#Get nu info by combining mc results and info on outgoing particles
-		nu_dct = self.template_odct()
-
-		#nu identity
-		ID = self.current_tree.GetLeaf("mc_incoming").GetValue()
-		nu_dct["ID"] = ID
-		nu_dct["Name"] = dR.PDGTools.decode_ID(ID)
-		#ASSUME NU CARRIES ALL THE P_OUT TO THE RXN
-		tot_P =  self.get_P(recon_dct)
-		E_nu = self.current_tree.GetLeaf("mc_incomingE").GetValue()
-		m_p = dR.PDGTools.fetch_mass("proton")
-		#N will be the number of at-rest protons expected to have reacted with nu_in
-		N_guess = E_nu - tot_P[0]
-		#4-vector constructed from E_nu, p_out
-		nu_dct["4vec"] = (E_nu, tot_P[1], tot_P[2], tot_P[3])
-		nu_dct["reconMass"] = self.vec_mass(nu_dct["4vec"])
-
-		ex_flag = ("nu_px" in self.export_lst) and ("nu_py" in self.export_lst) and self.export
-		if ex_flag:
-			self.export_dct["nu_px"].Fill(tot_P[1])
-			self.export_dct["nu_py"].Fill(tot_P[2])
-
-		return nu_dct
-
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	def get_P(self, recon_dct):
-		#GET ENERGY OF INC NEUTRINO
- 		#INCLUDE PROTON INTERXN IN THE INITIAL NEUTRINO SCATTER
-		tot_P = [0,0,0,0]
-		for part_num, nth_dct in recon_dct.iteritems():
-			tot_P = [sum(x) for x in zip(nth_dct["4vec"], tot_P)]
 
-		return tuple(tot_P)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	def compare_mc_neutrons(self, event):
@@ -861,49 +828,7 @@ class DATA_N_event(MC_N_event):
 		self.MC_anal = False
 		self.CCQE_str = "CCQEAntiNuTool_"
 		#Exporting handled at exe; PyROOT doesn't seem to save ROOT mem locations
-		if self.export:
 
-			#Initialize all possible export histograms
-			hout = R.TFile(self.export_fname+".root", "RECREATE")
-			self.export_dct = dict((pair[0], pair[1]) for pair in self.all_export_lst)
-			#some janky setup for naming histograms
-			self.export_names = {}
-			for tupl in self.all_export_lst:
-				#write hist titles
-				try:
-					xname = tupl[2]
-				except:
-					xname = "-"
-				try:
-					yname = tupl[3]
-				except:
-					yname = "-"
-				self.export_names[tupl[0]] = (xname, yname)
-			#add simulated neutrons to TH1F's
-			self.n_comp_permus = self.init_permus()
-			#Initialize dictionary using all the preset ranges
-			for hname, ranges in self.export_dct.iteritems():
-				#2D hists get special treatment
-				if hname in self.hist_2D:
-					self.export_dct[hname] = R.TH2F(hname, hname, ranges[0], ranges[1], ranges[2], ranges[3], ranges[4], ranges[5])
-				#Lines/plots get different treatment too!
-				#list is (x,y) pairs
-				elif hname in self.hist_lines:
-					self.export_dct[hname] = (R.TGraph(), [])
-				else:
-					self.export_dct[hname] = R.TH1F(hname, hname, ranges[0], ranges[1], ranges[2])
-
-			#Get neutrons comparison permutations
-			for tupl in self.n_comp_permus:
-				name_theta = "theta_nvb_deg_%s_vs_%s" % tupl
-				name_energy = "ENERGIES_%s_vs_%s" % tupl
-				name_rel = "RELATIVE_ENERGY_%s_over_%s" % (tupl[1], tupl[0])
-				self.export_dct[name_theta] =  R.TH1F(name_theta, name_theta, 90, 0, 180)
-				self.export_dct[name_energy] =  R.TH2F(name_energy, name_energy, 50, 0, 600, 50, 0, 600)
-				self.export_dct[name_rel] = R.TH1F(name_rel, name_rel, 30, 0, 2)
-				self.export_dct[name_energy].GetXaxis().SetTitle(tupl[0])
-				self.export_dct[name_energy].GetYaxis().SetTitle(tupl[1])
-				self.hist_2D.append(name_energy)
 			#export_dct is now populated w/ histograms at each key
 	# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

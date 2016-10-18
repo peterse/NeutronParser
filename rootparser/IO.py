@@ -29,10 +29,31 @@ sys.path.append("/home/epeters/NeutronParser/tests")
 global_f = None #IO filehandle
 tree = None # tree handle
 subtrees = {}
+subhists = {}
 
 #where combined histogram objects are written to
 OUTFILE = None
 
+
+######################################################################
+#Histogram management
+
+def get_subhist():
+    #grab a stashed histogram dictionary
+    global subhists
+    pid = os.getpid()
+    out = subhists.get(pid)
+
+    if out:
+        return out
+    else:
+        raise IOError("PID %s subhist not found" % str(pid))
+
+def put_subhist(hist_dct):
+    #store a hist dict for this PID
+    global subhists
+    pid = os.getpid()
+    subhists[pid] = hist_dct
 
 ######################################################################
 
@@ -50,6 +71,7 @@ def put_subtree(pid, subtree):
     #When a process starts, it needs to store its respective tree globally
     #store it in a dct under the callers PID
     global subtrees
+    pid = os.getpid()
     subtrees[pid] = subtree
 
 def get_subtree():
