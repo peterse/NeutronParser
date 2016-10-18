@@ -1,5 +1,8 @@
 """histogram.py - main methods for interfacing data with ROOT histograms"""
 
+#Where we'll put the output histograms
+
+
 class HistogramManager:
     """Managing a .root file for storing historgrams from processing events in another root file"""
 

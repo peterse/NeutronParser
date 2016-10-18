@@ -26,7 +26,7 @@ treename = "test"
 treename2 = "test2"
 TMP = os.getcwd() + "/tmp"
 #testfile-specific attributes
-filesize = 100000
+filesize = 1000
 n_trees = 2
 #Postcondition: MC_dummy.root will be recreated
 #kwargs:
@@ -52,6 +52,10 @@ def recreate_testfile():
     #grab the test-tree
     tree = dummyIO.list_of_trees[0]
     tree.GetEvent()
+
+    #Stage the global tree
+    #IO.put_subtree(os.getpid(), tree)
+
     #flush the tmp folder
     #shutil.rmtree(TMP)
     #os.mkdir(TMP)

@@ -30,17 +30,21 @@ global_f = None #IO filehandle
 tree = None # tree handle
 subtrees = {}
 
+#where combined histogram objects are written to
+OUTFILE = None
 
 
 ######################################################################
 
 def join_all_events(evt_lst):
-    #passed a list of (lists of event objects) concatenate them
-    #This requires reconstruction of event numbers
-    for evt_sublist in evt_lst:
-        print evt_sublist[0].index
-        continue
-    return
+    #passed a list of (lists of event objects) concatenate them (in order)
+    #This requires reconstruction of event numbers - occurs at end of event.fill
+
+    index_sorted = sorted(evt_lst, key=lambda x: x[0].index)
+    #print [evt.index for evt in index_sorted]
+    #Flatten the list according to the index of the first event of each sublst
+    out = [evt for sublst in index_sorted for evt in sublst ]
+    return out
 
 def put_subtree(pid, subtree):
     #When a process starts, it needs to store its respective tree globally
@@ -52,7 +56,8 @@ def get_subtree():
     #When a process asks for a tree, give it one through this method
     #Expects to be called within the context of a process
     global subtrees
-    out = subtrees.get(os.getpid())
+    pid = os.getpid()
+    out = subtrees.get(pid)
 
     if out:
         return out

@@ -53,11 +53,17 @@ class Event:
         #   2) iterate over particles creating 'Particle' objects
         #self.n_parts = self.fetch_n_parts()
 
+        #neutron blob comparison
+        self.n_neutrons = 0
+        self.n_blobs = 0
         return
 
     def __str__(self):
         #A representation of this event; dump particles?
-        return str(self.particle_lst)
+        index = "Event: %s" % str(self.index)
+        parts = "Particles: %s" % "\n  ".join([str(p) for p in self.particle_lst])
+        return "\n".join([index, parts, " "])
+        #return str(self.particle_lst)
 
     # # # Container methods # # #
     #TODO: Scrub these scrubs?
@@ -136,6 +142,7 @@ def fill_event(evt_obj):
         #TODO: handling bad event fills
         return None
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 @versioncontrol
 def fetch_n_parts_mc(evt, nparts_leaf="MC_N_PART"):
     #Get the number of particles in this event
@@ -184,6 +191,9 @@ def get_vtx_data(e_i, vtx_branch="RECON_VTX"):
     #Passed an event index, return the mc VTX "4-vec"
     return fetch_vec_base(e_i, vtx_branch)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#TODO:
+def get_blob(e_i, blob_branch="????"):
+    return
 
 #FIXME: Different fill methods depending on MC, DATA, RECON
 def fill_parts(evt):
@@ -225,6 +235,17 @@ def fill_parts(evt):
 
     return good_fill
 
+def count_neutrons(evt):
+    #TODO
+    #eponymous.
+    return
+
+def count_blobs(evt):
+    #TODO
+    #eponymous
+    return
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 def calculate_total_P(evt):
     #For a filled event, find the total 4-vector of the identified particles
     #To be called before reconstructing
@@ -258,8 +279,12 @@ def calculate_neutrino(evt):
     #TODO: Use energy differential to discover something about the event?
     N_guess = evt.nu.P[0] - evt.P[0]
 
-
-
+def calculate_dtheta(evt):
+    #TODO:
+    #Passed an event with a blob, determine the following
+    #   1 neutron no blob, 1 blob no neutron:
+    #   1 neutron 1 blob: return dtheta
+    #   >1 neutron
 ######################################################################
 class Particle:
     """Representation of a particle pulled from a given event"""
@@ -280,6 +305,9 @@ class Particle:
         self.inc = False    #incoming neutrino?
 
         return
+
+    def __str__(self):
+        return self.name
     #FIXME: how will we access the current tree? What is its name?
     #FIXME: two possible implementations for momentum leaf
     #           1) three separate leafs: mc_FSPartPx, mc_FSPartPy, ...

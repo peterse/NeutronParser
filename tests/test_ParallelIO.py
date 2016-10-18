@@ -75,27 +75,38 @@ class ParallelIOTest(unittest.TestCase):
 
         #now: subtrees[PID] = None
 
+    def test_join_all_events(self):
+        #functionality for sorting sublists of events by evt.index
+        evt_lst = []
+        log.info("Testing join_all_events function")
+        with rootpy.io.root_open(testfile.MC_filename) as fh:
+            for subtree in IO.get_next_tree(fh):
+                IO.put_subtree(os.getpid(), subtree )
+                #Create a list of sublists of events in backwards index order
+                for i in reversed(range(10)):
+                    evts = range(10*i, 10*(i+1))
+                    temp = [event.Event(j, IO.get_subtree()) for j in evts]
+                    evt_lst.append(temp)
+                out = IO.join_all_events(evt_lst)
+                break
+        self.assertEqual([evt.index for evt in out], range(100))
+
+
     def test_divide_and_process(self):
-
-        #pass
-
         #Divide a testfile and sick the threads on it
         #divide the file into the temporary directory
-        paths = IO.split_file(testfile.MC_filename, parallel.N_THREADS, path=os.getcwd(), dest=testfile.TMP, recreate=False)
+        paths = IO.split_file(testfile.MC_filename, parallel.N_THREADS, path=os.getcwd(), dest=testfile.TMP, recreate=True)
 
         #explicit function and targets
         func = event.ParseEvents
         args = paths
 
-        #The successful fill of a file's events yields '0'
         i = 0
         Time.start("CPU-ParallelIO OO fill() trial %i" % (i+1) )
+        #an unordered list of sublists of events
         cpu_out = Parallel.run(func, args, ParallelPool=Pool)
-        #The successful fill of a file's events yields '0'
         Time.end()
         all_evts = IO.join_all_events(cpu_out)
-        return
-        # [evt for evt_sublst in cpu_out for evt in evt_sublst]
 
         #self.assertEqual(fill_good, [0 for i in paths])
         #Serial func takes in a single filename
@@ -105,8 +116,13 @@ class ParallelIOTest(unittest.TestCase):
         Time.start("SerialIO OO fill() trial %i" % (i+1) )
         serial_out = Parallel.run(func, args, ParallelPool=None)
         Time.end()
+        serial_out = IO.join_all_events(serial_out)
+        #print [evt.index for evt in serial_out]
+        #print [evt.index for evt in all_evts]
 
-
+        for i in range(len(serial_out)):
+            #print serial_out[i].index, all_evts[i].index
+            print serial_out[i], all_evts[i]
         #self.assertEqual(serial_out, all_evts)
     #Timing
     def test_TimeParseEvents(self):
