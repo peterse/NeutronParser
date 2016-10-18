@@ -285,6 +285,7 @@ def calculate_dtheta(evt):
     #   1 neutron no blob, 1 blob no neutron:
     #   1 neutron 1 blob: return dtheta
     #   >1 neutron
+    pass
 ######################################################################
 class Particle:
     """Representation of a particle pulled from a given event"""
