@@ -2,7 +2,9 @@
 
 import sys
 #Package to test:
-sys.path.insert(0, "/home/epeters/NeutronParser/rootparser")
+package = "/home/epeters/NeutronParser/rootparser"
+if package not in sys.path:
+    sys.path.insert(0, package)
 
 import unittest
 from timer import Timer
@@ -41,7 +43,7 @@ from IO import versioncontrol
 import os
 
 #Boot the thread manager with the current tree
-Parallel = ThreadManager(n_processes=8)     #Threading
+Parallel = ThreadManager(n_processes=parallel.N_THREADS)     #Threading
 Time = Timer()
 
 class ParallelIOTest(unittest.TestCase):

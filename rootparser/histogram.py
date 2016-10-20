@@ -2,6 +2,16 @@
 
 from rootpy.plotting import Hist, Hist2D
 from collections import OrderedDict
+
+#errors, warnings
+from rootparser_exceptions import log
+
+#IO
+import IO   #get, put, histogram interfacing
+import rootpy
+import os   #getpid
+
+
 #Where we'll put the output histograms
 class HistogramManager:
     """Managing a .root file for storing historgrams from processing events in another root file"""
@@ -16,6 +26,7 @@ class HistogramManager:
 
 #list of all supported export types, (name, (bins, min max), y-units)
 all_export_lst = [
+                ("null", (100,-1,1), "-" ),
                 ("n_trans_angle", (100,0,360), "deg" ),
                 ("p_trans_angle", (100, 0, 360), "deg" ),
                 ("nu_px", (100,-300, 300), "MeV/c" ),
@@ -46,14 +57,7 @@ all_export_lst = [
                 ("Z6_Nblob_vs_MC", (50, 0, 600, 50, 0, 600), "E_blob (MeV)", "E_MC (MeV)")
                 ]
 
-def extend_export_lst(target):
-    #There are some special comparisons between neutrons that are not hard-coded
 
-    # simulated neutron features
-    target = init_permus(target)
-
-
-    return target
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #Neutron comparison names for backwards compatibility
@@ -148,11 +152,10 @@ def init_hist_dct(export_lst):
             D2 = False
         else:
             D2 = True
-        print name, xbins, xmin, xmax
         #Different inits depending on 1D or 2D hist
-        #TODO: xlabel, ylabel
         if D2:
             out[name] = Hist2D(xbins, xmin, xmax, ybins, ymin, ymax, name=name, title=name)
+            out[name].SetOption("COLZ")
         else:
             out[name] = Hist(xbins, xmin, xmax, name=name, title=name)
 
@@ -162,7 +165,53 @@ def init_hist_dct(export_lst):
             out[name].GetYaxis().SetTitle(ylab)
 
     return out
-    
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def init_histograms():
+    #FIXME: 'path' is read location? write location?
+    #Initialize a single PID's histograms to the subhist dct
+    global all_export_lst
+    hists = init_hist_dct(all_export_lst)
+
+    IO.put_subhist(hists)
+
+def fill_hist(histname, *vals):
+    #wrapper for Fill() method that gets a pid's respective histogram dict
+    #Should be good for 1D, 2D, etc.
+    hist_dct = IO.get_subhist()
+    try:
+        log.info("getting PID %s from subhists" % os.getpid() )
+        hist_dct.get(histname).Fill(*vals)
+    except KeyError:
+        #This requested histogram does not exist; name passed wrong?
+        log.warning("Histogram %s does not exist - check requested histname" % histname)
+        raise KeyError
+    else:
+        return 0
+
+def write_hists(path):
+    #Precondition: Call from within the context of init_histograms
+    #write a subprocess' histograms to a .root file at path
+    #TODO: overwriting histograms?
+    log.info("PID %i writing histograms to %s" % (os.getpid(), path))
+    with rootpy.io.root_open(path, "recreate") as fh:
+        for k, hist in IO.get_subhist().iteritems():
+            hist.Write()
+    return 0
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def extend_export_lst(target):
+    #There are some special comparisons between neutrons that are not hard-coded
+    # simulated neutron features
+    target = init_permus(target)
+
+    return target
+
+# # # # # # # # # # # # # # # # # #
+#Modifications called exactly once; cannot call within subprocess
+all_export_lst = extend_export_lst(all_export_lst)
+# # # # # # # # # # # # # # # # # #
+
 def main():
     global all_export_lst
 

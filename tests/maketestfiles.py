@@ -25,6 +25,10 @@ DATA_filename = "DATA_dummy.root"
 treename = "test"
 treename2 = "test2"
 TMP = os.getcwd() + "/tmp"
+
+#histogram tmp
+TMP_HIST = os.getcwd() + "/tmp_hist"
+#TMP_FNAME = "tmp.root"
 #testfile-specific attributes
 filesize = 1000
 n_trees = 2
