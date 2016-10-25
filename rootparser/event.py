@@ -1,6 +1,6 @@
 from IO import versioncontrol
 import numpy as np
-import MINERvAmath
+import MINERvAmath as Mm
 import dctROOTv9 as dR
 
 
@@ -57,6 +57,14 @@ class Event:
         #neutron blob comparison
         self.n_neutrons = 0
         self.n_blobs = 0
+        self.n_protons = 0
+
+        #angle comparisons
+        self.mu_dot_n_T = None
+
+        self.rvb = None
+        #Post-Filter
+        self.final_E_n = None       #Final neutron/blob energy
         return
 
     def __str__(self):
@@ -88,20 +96,30 @@ class Event:
         #define addition
         self.particle_lst.append(particle)
         return self
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def dump_to_hist(evt):
+    #Once an event has completed, apply filters and write to histograms
+    #Precondition: Events must be parsed with 'dump' option
+    #Precondition: Called from within output file context
+    #
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-def ParseEvents(filepath):
+def ParseEvents(filepath, hist=True, filt=True, dump=True):
     #Highest level processing: given a filename, generate and fill events
 
     pid = os.getpid()
     log.info("PID %s parsing %s" % (pid, filepath))
 
     #initialize and store histograms
-    export_lst = hi.extend_export_lst(hi.all_export_lst)
-    subhist_dct = init_hist_dct(export_lst)
-    IO.put_subhist(subhist_dct)
+    if hist:
+        export_lst = hi.extend_export_lst(hi.all_export_lst)
+        subhist_dct = init_hist_dct(export_lst)
+        IO.put_subhist(subhist_dct)
 
     #setup filters
+    if filt:
+        pass
 
 
 
@@ -176,14 +194,16 @@ def fetch_vec_base(e_i, leafname):
     #FIXME: Are we sure this is the general order of vector components?
     for i, dim in enumerate([ "x", "y", "z", "t"]):
         out[i] = IO.get_subtree().GetLeaf(leafname).GetValue(i)
-
     return out
+
+def fetch_val_base(e_i, leafname):
+    #return the value of a single=valued leaf/branch
+    return IO.get_subtree().GetLeaf(leafname).GetValue()
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def get_vtx(e_i, datatype=0):
     if datatype == 0:
         return get_vtx_mc(e_i)
-        print "mc"
     elif datatype == 1:
         return get_vtx_data(e_i)
     elif datatype == 2:
@@ -202,6 +222,12 @@ def get_vtx_data(e_i, vtx_branch="RECON_VTX"):
 #TODO:
 def get_blob(e_i, blob_branch="????"):
     return
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+@versioncontrol
+def get_evt_type_mc(e_i, type_branch="MC_TYPE"):
+    return fetch_val_base(e_i, type_branch)
 
 
 #FIXME: Different fill methods depending on MC, DATA, RECON
@@ -258,6 +284,8 @@ def calculate_parts(evt):
     #Passed an event with particles, do strictly-CPU calculations on particle
     #attributes to find dereived quantities
 
+    #FIXME: Mm.vec_mass, Mm.yz_rotation, etc.
+
     #Particle mass
     for part in evt.particle_lst:
         good_calc = calculate_attrs(part)
@@ -266,6 +294,8 @@ def calculate_parts(evt):
     good_P = calculate_total_P(evt)
     #Recreate a neutrino signature using event momentum
     good_nu = calculate_neutrino(evt)
+    #Measure the blob-vertex distance
+    evt.rvb = calculate_rvb(evt)
     return None
 
 def calculate_total_P(evt):
@@ -299,13 +329,41 @@ def make_kine_neutrons(evt):
     return
 
 def make_blob_neutron(evt):
+
+    #Short circuit the analysis - if no blobs, no rvb, etc. - how much can we skip??
+    #TODO: What if there's a lot of blobs?
     return
 
+def calculate_rvb(evt):
+    #Find the vertex-blob distance
+    #Based on number of blobs + run settings
+    #TODO:
+    return
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#Step 4: Cap, publish
 def cap_event(evt_obj):
     #overwrite the event index with the full range from the original file
     evt_obj.index = IO.get_subtree().GetLeaf("event").GetValue()         #event number
+    #TODO: datatype??
+    #evt_obj.datatype = None
+
+    #TODO: Final E_n
+    #evt_obj.final_E_n = None
     return True
 
+#FIXME: these can probably be merged into cap_event
+def set_event_type(evt):
+    #Set the type of event - CCQE, etc.
+    return
+
+def set_E_n(evt):
+    #Set the characteristic neutron's energy for this event
+    #TODO: MC E? Blob E??
+    return
+	#FILTER for E_n,mc, E_n,kine recon, E_n,kine mc
+    if mc_n_E < self.E_n_range[0] or recon_kine_n_P[0] < self.E_n_range[0] or mc_kine_n_P[0] < self.E_n_range[0]:
+        return
 ######################################################################
 class Particle:
     """Representation of a particle pulled from a given event"""

@@ -370,6 +370,7 @@ lookup_dct = {
             "MC_INCOMING_PART": "mc_incoming",
             "MC_INCOMING_ENERGY": "mc_incomingE",
             "MC_VTX":  "mc_vtx",
+            "MC_TYPE": None,
 
             "DATA_PART_XYZ_PREFIX": "derp2",
             "DATA_PART_E": "derp",

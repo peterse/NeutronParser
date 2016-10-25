@@ -296,9 +296,9 @@ class MC_N_event:
 		N_n = all_recon.count("neutron")
 
 		#FILTER QE with 1 n and 0 protons (already have, just being safe)
-		if not (N_p==0 and N_n==1) and self.QE_like_only:
-			#print "event %i rejected: %i neutrons; %i protons" % (event, N_n, N_p)
-			return 0
+		# if not (N_p==0 and N_n==1) and self.QE_like_only:
+		# 	#print "event %i rejected: %i neutrons; %i protons" % (event, N_n, N_p)
+		# 	return 0
 
 		#get mc muon
 		mc_mu_P = mc_dct.get(self.i_big_lep).get("4vec")
@@ -329,8 +329,6 @@ class MC_N_event:
 		ex_flag = self.export and ("mu_stats" in self.export_lst)
 		if ex_flag:
 			self.export_dct["phiT"].Fill(mu_dot_n_T)
-		if mu_dot_n_T < self.phi_T_min:
-			return
 
 		#Only look at 1 blob 1 n
 		if self.one_blob_one_n == True and N_blobs != 1:
@@ -417,9 +415,7 @@ class MC_N_event:
 
 
 
-		#FILTER for E_n,mc, E_n,kine recon, E_n,kine mc
-		if mc_n_E < self.E_n_range[0] or recon_kine_n_P[0] < self.E_n_range[0] or mc_kine_n_P[0] < self.E_n_range[0]:
-			return
+
 
 		#Finish efficiency plotting
 		if ex_flag and N_blobs == 1:

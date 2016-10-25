@@ -36,7 +36,7 @@ def TestFillHists(tupl):
     #TODO: currently writing to tmp_hist/<pid>.root
     #writing hists to a file
     pid = os.getpid()
-    path = "%i.root" % pid
+    path = "%s/%i.root" % (testfile.TMP_HIST, pid)
 
     #working in the subprocess' context...
     log.info("initializing histograms")

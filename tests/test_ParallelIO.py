@@ -111,8 +111,9 @@ class ParallelIOTest(unittest.TestCase):
         all_evts = IO.join_all_events(cpu_out)
 
         #self.assertEqual(fill_good, [0 for i in paths])
-        #Serial func takes in a single filename
-        func = event.ParseEvents
+        #Serial func takes in a single filename, turn off hist
+        def func(path):
+            return event.ParseEvents(path, hist=False, filt=True)
         args = [testfile.MC_filename]
 
         Time.start("SerialIO OO fill() trial %i" % (i+1) )
