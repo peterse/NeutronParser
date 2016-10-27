@@ -103,6 +103,30 @@ def dump_to_hist(evt):
     #Precondition: Called from within output file context
     #
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def PlotEvents(filepath, hist=True, filt=True, dump=True):
+    pass
+    #FIXME: Do we want to separate histograms from analysis sequence??
+
+    
+    #Passed an input filepath, parse all events and plot necessary
+    #This encapsulates ParseEvents because parallel runs exactly
+    #   one main function per PID.
+    #return the event list
+
+    #initialize and store histograms
+    # if hist:
+    #     export_lst = hi.extend_export_lst(hi.all_export_lst)
+    #     subhist_dct = init_hist_dct(export_lst)
+    #     IO.put_subhist(subhist_dct)
+    #
+    # #setup filters
+    # if filt:
+    #     pass
+    #
+    # #Parse the events for this file set
+    # parsed = ParseEvents(filepath, hist, filt, dump)
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def ParseEvents(filepath, hist=True, filt=True, dump=True):
@@ -111,7 +135,6 @@ def ParseEvents(filepath, hist=True, filt=True, dump=True):
     pid = os.getpid()
     log.info("PID %s parsing %s" % (pid, filepath))
 
-    #initialize and store histograms
     if hist:
         export_lst = hi.extend_export_lst(hi.all_export_lst)
         subhist_dct = init_hist_dct(export_lst)
@@ -120,8 +143,6 @@ def ParseEvents(filepath, hist=True, filt=True, dump=True):
     #setup filters
     if filt:
         pass
-
-
 
     #Parse input files
     with rootpy.io.root_open(filepath) as fh:
