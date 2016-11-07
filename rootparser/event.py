@@ -105,10 +105,10 @@ def dump_to_hist(evt):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def PlotEvents(filepath, hist=True, filt=True, dump=True):
-    pass
+    return
     #FIXME: Do we want to separate histograms from analysis sequence??
 
-    
+
     #Passed an input filepath, parse all events and plot necessary
     #This encapsulates ParseEvents because parallel runs exactly
     #   one main function per PID.

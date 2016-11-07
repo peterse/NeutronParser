@@ -3,10 +3,11 @@ import time
 class Timer():
     """Define a timer class to be instantiated once. Wrap routines to time with start() and end()"""
 
-    def __init__(self):
+    def __init__(self, quiet=False):
         self.count = 0
         self.t0 = 0
         self.name = None
+        self.quiet = quiet
 
     def start(self, name=None):
         #Naming a timer sequence
@@ -20,9 +21,13 @@ class Timer():
     def end(self):
         self.t1 = time.clock()
         dt = self.t1 - self.t0
-        if self.name:
-            print "Routine '%s': Time elapsed: %f" % (self.name, dt)
+        #Either print the timing results to the shell, or return the values
+        if self.quiet:
+            return dt
         else:
-            print "Index '%i': Time elapsed: %f" % (self.count, dt)
-
-        self.count += 1
+            if self.name:
+                print "Routine '%s': Time elapsed: %f" % (self.name, dt)
+            else:
+                print "Index '%i': Time elapsed: %f" % (self.count, dt)
+            self.count += 1
+            return dt
