@@ -86,4 +86,4 @@ def make_neutron_P(P_mu):
 		raise ValueError("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
 		return None
 #Get kinetic energies of neutrons
-	return (E_n - self.m_n, -P_mu[1], -P_mu[2], p_nz)
+	return (E_n - m_n, -P_mu[1], -P_mu[2], p_nz)

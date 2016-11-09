@@ -376,6 +376,7 @@ lookup_dct = {
             "DATA_PART_E": "derp",
             "DATA_PART_ID": None,
             "DATA_INCOMING_PART": None,
+            "DATA_BLOB_PREFIX": "CCQEAntiNuTool_isoblob",
 
             "RECON_VTX": "CCQEAntiNuTool_vtx"
             }

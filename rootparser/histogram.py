@@ -25,6 +25,8 @@ class HistogramManager:
 
 
 #list of all supported export types, (name, (bins, min max), y-units)
+n_pairs = []        #global tupl pairs of neutrons to compare
+
 all_export_lst = [
                 ("null", (100,-1,1), "-" ),
                 ("n_trans_angle", (100,0,360), "deg" ),

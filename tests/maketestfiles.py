@@ -43,6 +43,10 @@ class TreeTemplate(TreeModel):
     """A template for constructing special-object TTrees"""
     #Specify branches of special types ahead of time
     mc_vtx = FloatArrayCol(4)
+    CCQEAntiNuTool_isoblobE = FloatArrayCol(1)
+    CCQEAntiNuTool_isoblobX = FloatArrayCol(1)
+    CCQEAntiNuTool_isoblobY = FloatArrayCol(1)
+    CCQEAntiNuTool_isoblobZ = FloatArrayCol(1)
 
 
 ######################################################################
@@ -87,6 +91,7 @@ def generate_MC(lightweight=False):
                             "mc_FSPartPDG": "I",
                             "mc_incoming": "I",
                             "mc_incomingE": "F",
+
                             })
     #Custom branching: Hand-make a treebuffer and feed its special types into tree
     # print "Testing:"
@@ -110,7 +115,7 @@ def generate_MC(lightweight=False):
         #simulate momenta, energies
         p = [random.gauss(0., 1.) for i in range(5)]
         vtx = [random.gauss(0., 10.) for i in range(4)]
-
+        blob = [random.gauss(0., 10.) for i in range(4)]
         tree.mc_FSPartPx = p[0]
         tree.mc_FSPartPy = p[1]
         tree.mc_FSPartPz = p[2]
@@ -120,11 +125,23 @@ def generate_MC(lightweight=False):
         tree.mc_incoming = -13          #neutrino
         tree.mc_incomingE = p[4]        #neutrino energy
 
+
         #vtx
         tree.mc_vtx.clear()
         for i, vtx_dim in enumerate(vtx):
             tree.mc_vtx[i] = vtx_dim
         tree.fill()
+
+        #blob
+        for vec in [
+                    tree.CCQEAntiNuTool_isoblobE,
+                    tree.CCQEAntiNuTool_isoblobX,
+                    tree.CCQEAntiNuTool_isoblobY,
+                    tree.CCQEAntiNuTool_isoblobZ]:
+            vec.clear()
+            for i, dim in enumerate(vec):
+                vec[i] = blob[i]
+            tree.fill()
 
     tree.write()
 

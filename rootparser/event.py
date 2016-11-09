@@ -102,7 +102,7 @@ def dump_to_hist(evt):
     #Precondition: Events must be parsed with 'dump' option
     #Precondition: Called from within output file context
     #
-
+    return
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def PlotEvents(filepath, hist=True, filt=True, dump=True):
     return
