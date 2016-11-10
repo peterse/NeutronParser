@@ -30,8 +30,11 @@ class AnalysisTest(unittest.TestCase):
                 arr = root_numpy.tree2array(tree)
 
     def test_ParseEventsNP(self):
-        analysis.ParseEventsNP(testfile.MC_filename)
+        #non-OO version for event parsing; still uses cut subtrees
+        pid = os.getpid()
+        path = "%s/%i.root" % (testfile.TMP_HIST, pid)
 
+        analysis.ParseEventsNP(testfile.MC_filename, hist_target=path)
 if __name__ == "__main__":
 
     testfile.recreate_testfile()
