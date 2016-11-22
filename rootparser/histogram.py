@@ -11,6 +11,8 @@ import IO   #get, put, histogram interfacing
 import rootpy
 import os   #getpid
 
+#Some plotting
+import MINERvAmath as Mm
 
 #Where we'll put the output histograms
 class HistogramManager:
@@ -25,8 +27,8 @@ class HistogramManager:
 
 
 #list of all supported export types, (name, (bins, min max), y-units)
-n_pairs = []        #global tupl pairs of neutrons to compare
-
+n_pairs = []        #global tupl pairs of neutrons to compare - init
+n_singles = ["recon_kine_n_P", "mc_kine_n_P", "mc_n_P", "n_blob"]
 all_export_lst = [
                 ("null", (100,-1,1), "-" ),
                 ("n_trans_angle", (100,0,360), "deg" ),
@@ -68,7 +70,7 @@ def make_n_energy_name(n_name):
 def make_n_pz_name(n_name):
     return "PZ_" + n_name
 def make_n_comp_theta_name(tupl):
-    return "theta_nvb_deg_%s_vs_%s" % tupl
+    return "DTHETA_%s_vs_%s" % tupl
 def make_n_comp_energy_name(tupl):
     return "ENERGIES_%s_vs_%s" % tupl
 def make_n_comp_rel_e_name(tupl):
@@ -91,8 +93,8 @@ def init_permus(target):
         histname2 = make_n_pz_name(n_name)
     	target.append( (histname2, (100, 0, 1500), "MeV/c") )
 
-    #Setting up all combinations for comparing neutrons
-    n_pairs = []
+    #Setting up all ordered combinations for comparing neutrons
+    global n_pairs
     for i, (k, v) in enumerate(n_dct.iteritems()):
     	current_k = k
     	#grab every other neutron type, without repeats
@@ -160,7 +162,6 @@ def init_hist_dct(export_lst):
             out[name].SetOption("COLZ")
         else:
             out[name] = Hist(xbins, xmin, xmax, name=name, title=name)
-
         #set axes titles
         out[name].GetXaxis().SetTitle(xlab)
         if D2:
@@ -211,8 +212,45 @@ def extend_export_lst(target):
 
 # # # # # # # # # # # # # # # # # #
 #Modifications called exactly once; cannot call within subprocess
-all_export_lst = extend_export_lst(all_export_lst)
+#all_export_lst = extend_export_lst(all_export_lst)
 # # # # # # # # # # # # # # # # # #
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#Plotting for the analysis
+
+def make_comp_hists(lookup_dct):
+    #Passed a dictionary of current neutron 4-vecs, plot comparisons
+    global n_pairs
+    for n_pair in n_pairs:
+        n0 = lookup_dct.get(n_pair[0])
+        n1 = lookup_dct.get(n_pair[1])
+        if n1 is not None and n0 is not None:
+            #ENERGIES
+            E_compare = make_n_comp_energy_name(n_pair)
+            fill_hist(E_compare, n0[0], n1[0])
+            #ANGLES
+            phi_compare = make_n_comp_theta_name(n_pair)
+            dangle, D = Mm.compare_vecs(n0, n1)
+            fill_hist(phi_compare, dangle)
+    return
+
+def make_neutron_hists(lookup_dct):
+    #Passed a dictionary of current neutrons, plot individual properties
+    global n_singles
+    for n_name in n_singles:
+        if lookup_dct.get(n_name) is None:
+            continue
+        #ENERGY
+        E_name = make_n_energy_name(n_name)
+        fill_hist(E_name, lookup_dct.get(n_name)[0])
+        #MOMENTUM
+        PZ_name = make_n_pz_name(n_name)
+        fill_hist(PZ_name, lookup_dct.get(n_name)[3])
+    return
+
+
+
 
 def main():
     global all_export_lst

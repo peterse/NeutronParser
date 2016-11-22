@@ -370,10 +370,10 @@ lookup_dct = {
             "MC_INCOMING_PART": "mc_incoming",
             "MC_INCOMING_ENERGY": "mc_incomingE",
             "MC_VTX":  "mc_vtx",
-            "MC_TYPE": None,
+            "MC_TYPE": "mc_intType",
 
-            "DATA_PART_XYZ_PREFIX": "derp2",
-            "DATA_PART_E": "derp",
+            "DATA_PART_XYZ_PREFIX": None,
+            "DATA_PART_E": None,
             "DATA_PART_ID": None,
             "DATA_INCOMING_PART": None,
             "DATA_BLOB_PREFIX": "CCQEAntiNuTool_isoblob",

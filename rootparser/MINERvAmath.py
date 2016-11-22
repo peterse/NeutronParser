@@ -66,7 +66,7 @@ def norm(vec):
 	#Arg type: np.array
 	return np.linalg.norm(vec)
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #"Simulated" particles
 
 #FIXME: numpy functions for speedup
@@ -87,3 +87,28 @@ def make_neutron_P(P_mu):
 		return None
 #Get kinetic energies of neutrons
 	return (E_n - m_n, -P_mu[1], -P_mu[2], p_nz)
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+def compare_vecs(a, b, mode=0):
+#Given two spacial 3vecs (unnormalized), compares angle between them
+#	mode=0: return angle, separation
+#	mode=1: return cos(angle), separation
+#Pass this v_n*time and vec(vtx->blob) in (m)
+	norm_a = norm(a)
+	norm_b = norm(b)
+	a = np.array(a)
+	b = np.array(b)
+	dot = np.dot(a,b)
+	#law of cosines
+	cos = dot/(norm_a*norm_b)
+	theta = np.degrees(np.arccos(cos))
+	d = np.sqrt(norm_a*norm_a + norm_b*norm_b - 2*dot)
+	#Return the angle
+	if mode==0:
+		return theta, d
+	#Return the cosine of the angle
+	elif mode==1:
+				return cos, d
+			#print norm_a

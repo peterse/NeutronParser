@@ -3,7 +3,7 @@ import os #_exit()
 
 #Setting general logging preferences
 import logging
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s[%(pathname)s:%(lineno)d]:%(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s[%(filename)s:%(lineno)d]:%(message)s')
 
 import sys
 from rootpy import log
@@ -34,7 +34,12 @@ class RootFileError(Exception):
     def __str__(self):
         return repr(self.value)
 
-
+class MissingBranchError(Exception):
+    """The branch you're trying to access doesn't exist"""
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #Logging and Error Message Suppression
