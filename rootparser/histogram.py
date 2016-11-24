@@ -3,6 +3,9 @@
 from rootpy.plotting import Hist, Hist2D
 from collections import OrderedDict
 
+#accessing TCanvas
+import rootpy.ROOT as ROOT
+
 #errors, warnings
 from rootparser_exceptions import log
 
@@ -118,7 +121,7 @@ def make_pair_lst(n_pairs):
         out.append( (name_theta, (90, 0, 180), "deg") )
         #Energy comparisons
         name_energy = make_n_comp_energy_name(tupl)
-    	out.append( (name_energy, (50, 0, 600, 50, 0, 600), "MeV", "MeV") )
+    	out.append( (name_energy, (50, 0, 1200, 50, 0, 1200), "MeV", "MeV") )
         #Energy 1 vs Energy 2
     	name_rel = make_n_comp_rel_e_name(tupl)
     	out.append( (name_rel, (30, 0, 2), "MeV/MeV") )
@@ -181,6 +184,7 @@ def init_histograms():
 def fill_hist(histname, *vals):
     #wrapper for Fill() method that gets a pid's respective histogram dict
     #Should be good for 1D, 2D, etc.
+    #return a handle to the histogram
     hist_dct = IO.get_subhist()
     try:
         log.info("getting PID %s from subhists" % os.getpid() )
@@ -190,7 +194,7 @@ def fill_hist(histname, *vals):
         log.warning("Histogram %s does not exist - check requested histname" % histname)
         raise KeyError
     else:
-        return 0
+        return hist_dct.get(histname)
 
 def write_hists(path):
     #Precondition: Call from within the context of init_histograms
@@ -210,6 +214,63 @@ def extend_export_lst(target):
 
     return target
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def save_as_png(hist, target):
+    #take a hist (canvas obj) and save it to a target dir
+
+    #spawn a canvas and draw the histogram
+    c = ROOT.TCanvas()
+    hist.Draw()
+    c.Update()
+
+    c.SaveAs(target)
+    return
+
+#TODO: Stylizing!
+# TCanvas* old_canv = gPad->GetCanvas();
+#
+#     gROOT->SetBatch(kTRUE);
+#     gROOT->ForceStyle(kTRUE);
+#
+#     Int_t orig_msz = gStyle->GetMarkerSize();
+#     Int_t orig_mst = gStyle->GetMarkerStyle();
+#     Int_t orig_lt  = gStyle->GetLineWidth();
+#
+#     gStyle->SetMarkerSize(1.0+scale/5);
+#     gStyle->SetMarkerStyle(20);
+#     gStyle->SetLineWidth(orig_lt*scale);
+#
+#     if(filename = "") {
+#         filename = old_canv->GetName();
+#         filename += ".png";
+#     }
+#
+#     Int_t old_width  = old_canv->GetWindowWidth();
+#     Int_t old_height = old_canv->GetWindowHeight();
+#
+#     Int_t new_width = old_width * scale;
+#     Int_t new_height= old_height* scale;
+#
+#     TCanvas* temp_canvas = new TCanvas("temp", "", new_width, new_height);
+#     old_canv->DrawClonePad();
+#
+#     temp_canvas->Draw();
+#     temp_canvas->SaveAs(filename);
+#     temp_canvas->Close();
+#
+#     gStyle->SetMarkerSize(orig_msz);
+#     gStyle->SetMarkerStyle(orig_mst);
+#     gStyle->SetLineWidth(orig_lt);
+#
+#     gROOT->ForceStyle(kFALSE);
+#     gROOT->SetBatch(kFALSE);
+
+    # ROOT.gSystem.ProcessEvents()
+    # img = ROOT.TImage(20,20)
+    # img.FromPad(c)
+    # log.info("PID %i saving histograms to %s" % (os.getpid(), target))
+    # img.WriteImage(target)
+
 # # # # # # # # # # # # # # # # # #
 #Modifications called exactly once; cannot call within subprocess
 #all_export_lst = extend_export_lst(all_export_lst)
@@ -228,8 +289,9 @@ def make_comp_hists(lookup_dct):
         if n1 is not None and n0 is not None:
             #ENERGIES
             E_compare = make_n_comp_energy_name(n_pair)
+            log.info("filling %s with %d, %d" % (E_compare, n0[0], n1[0]))
             fill_hist(E_compare, n0[0], n1[0])
-            #ANGLES
+            #DTHETA
             phi_compare = make_n_comp_theta_name(n_pair)
             dangle, D = Mm.compare_vecs(n0, n1)
             fill_hist(phi_compare, dangle)
@@ -244,7 +306,7 @@ def make_neutron_hists(lookup_dct):
         #ENERGY
         E_name = make_n_energy_name(n_name)
         fill_hist(E_name, lookup_dct.get(n_name)[0])
-        #MOMENTUM
+        #PZ
         PZ_name = make_n_pz_name(n_name)
         fill_hist(PZ_name, lookup_dct.get(n_name)[3])
     return

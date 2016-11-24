@@ -185,9 +185,10 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
                 IO.get_subtree().GetEvent(e_i)
 
                 #DEBUG:
-                if e_i > 1000:
+                if e_i > 10000:
                     break
-                log.info("Processing event %i" % e_i)
+                if e_i % 1000 == 0:
+                    log.info("Processing event %i" % e_i)
 
                 #PARTICLES
                 particle_lst = get_particle_lst(e_i, datatype)
@@ -200,8 +201,8 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
 
                 #BLOBS
                 #FIXME
-                #blobs = make_blob_neutrons(e_i, datatype=2)
-                #blob = pick_blob(blobs)
+                blobs = make_blob_neutrons(e_i, datatype=2)
+                blob = pick_blob(blobs)
 
                 #MC NEUTRON
                 mc_neutrons = fetch_neutrons_mc(particle_lst)
@@ -227,7 +228,7 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
                 evt = EventSummary(e_i, datatype)
                 evt.n_parts = 0
                 evt.n_neutrons = n_neutrons
-                #evt.n_blobs = len(blobs)
+                evt.n_blobs = len(blobs)
                 evt.n_protons = count_protons(particle_lst)
                 #mc-specific metadata
                 if datatype == 0:
@@ -238,7 +239,7 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
 
                 #filters: 'continue' means we're done with this event
                 if not fi.AntiQE_like_event(evt):
-                    log.info("Event %i not CCQE-like" % e_i )
+                    #log.info("Event %i not CCQE-like" % e_i )
                     continue
 
                 #histogramming
@@ -246,7 +247,7 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
                             "recon_kine_n_P": None,
                              "mc_kine_n_P": mc_kine_n_P,
                              "mc_n_P": mc_n_P,
-                            # "n_blob": blob
+                             "n_blob": blob
                              }
                 hi.make_comp_hists(lookup_dct)      #N-COMPARISONS
                 hi.make_neutron_hists(lookup_dct)   #INDIVIDUAL NEUTRONS
@@ -255,9 +256,11 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
 
                 #MC kine-neutron vs. SINGLE mc neutron
                 dangle, separation = Mm.compare_vecs(mc_n_P, mc_kine_n_P)
-                print mc_n_P, mc_kine_n_P
-                print dangle
-                break
+                # print mc_n_P, type(mc_n_P)
+                # print mc_kine_n_P, type( mc_kine_n_P)
+                # print P_mu, type(P_mu)
+                # print dangle
+
                 #print dangle
 
                 continue

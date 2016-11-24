@@ -32,9 +32,13 @@ class AnalysisTest(unittest.TestCase):
     def test_ParseEventsNP(self):
         #non-OO version for event parsing; still uses cut subtrees
         pid = os.getpid()
-        path = "%s/%i.root" % (testfile.TMP_HIST, pid)
 
-        analysis.ParseEventsNP(testfile.MC_filename, hist_target=path)
+        filename = testfile.MC_filename
+        path = os.getcwd()
+        target = "test_analysis.root"
+        dest = os.getcwd()
+        
+        analysis.ParseEventsNP(filename, path, target, dest)
 if __name__ == "__main__":
 
     testfile.recreate_testfile()

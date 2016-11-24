@@ -31,6 +31,10 @@ import rootpy   #root_open
 import event
 from analysis import ParseEventsNP, testEventAccess
 
+#Debugging
+import MINERvAmath as Mm
+
+
 #TODO: set this up as argparse, etc.
 
 
@@ -41,8 +45,8 @@ Parallel = ThreadManager(n_processes=parallel.N_THREADS)     #Threading
 N_THREADS = parallel.N_THREADS
 
 
-filename = "merged_CCQEAntiNuTool_minervamemc_nouniverse.root"
-path = "~/NeutronParser/sample2"
+filename = "merged_CCQEAntiNuTool_minervamc_nouniverse_nomec.root"
+path = "~/NeutronParser/sample3"
 target = "Analysis2.root"
 dest = path
 

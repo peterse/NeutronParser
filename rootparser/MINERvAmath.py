@@ -86,7 +86,7 @@ def make_neutron_P(P_mu):
 		raise ValueError("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
 		return None
 #Get kinetic energies of neutrons
-	return (E_n - m_n, -P_mu[1], -P_mu[2], p_nz)
+	return np.array([E_n, -P_mu[1], -P_mu[2], p_nz])
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -110,5 +110,5 @@ def compare_vecs(a, b, mode=0):
 		return theta, d
 	#Return the cosine of the angle
 	elif mode==1:
-				return cos, d
-			#print norm_a
+		return cos, d
+		#print norm_a

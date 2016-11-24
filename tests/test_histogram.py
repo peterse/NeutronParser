@@ -50,13 +50,27 @@ def TestFillHists(tupl):
     #WARNING: histograms only survive in the subprocesses' context!!
     return pid in IO.subhists
 
+def make_hist(tupl):
+
+    path, histname, vals = tupl[0], tupl[1], tupl[2]
+
+    #initialize a hist in this context, and return a handle
+    log.info("initializing histograms")
+    histogram.init_histograms()
+    hh = histogram.fill_hist(histname, vals)
+
+    #...then filling in the output file context
+    histogram.write_hists(path)
+
+    return hh
+
 class HistogramTest(unittest.TestCase):
 
 
     def test_get_put_hist(self):
         #test separate processes get/put to hist dict
 
-
+        return
         func = TestFillHists
         args = [(None, "null", 0) for i in range(parallel.N_THREADS) ]
 
@@ -64,7 +78,11 @@ class HistogramTest(unittest.TestCase):
         good_put = Parallel.run(func, args, ParallelPool=Pool)
         self.assertTrue(all(good_put))
 
+    def test_draw_png(self):
 
+        h = make_hist(("dummy_hist.root", "null", 0))
+        histogram.save_as_png(h, "XCXCXC.png")
+        #save_as_png()
 
 if __name__ == "__main__":
 
