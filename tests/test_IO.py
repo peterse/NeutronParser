@@ -15,7 +15,7 @@ from rootparser_exceptions import RootFileError, log
 import ROOT
 import rootpy.ROOT as rROOT
 import rootpy.io
-
+#from analysis import testEventAccess
 import os       #getcwd()
 
 #Some related functions
@@ -47,6 +47,8 @@ class IOTest(unittest.TestCase):
         #Should find trees:
         self.assertTrue(any(dummyIO.list_of_trees))
 
+    def test_add_event_branch(self):
+        IO.add_event_branch(testfile.MC_filename, os.getcwd())
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     def test_testfile(self):
         #test the file IO using different access methods
@@ -105,6 +107,8 @@ class IOTest(unittest.TestCase):
                 count += 1
         self.assertEqual(count, testfile.n_trees)
         log.info("Counted %i trees in file %s" % (count, testfile.MC_filename) )
+
+
 
 
 if __name__ == "__main__":

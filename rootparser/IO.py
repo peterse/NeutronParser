@@ -55,6 +55,9 @@ def put_subhist(hist_dct):
     pid = os.getpid()
     subhists[pid] = hist_dct
 
+def join_all_histograms():
+    return
+
 ######################################################################
 
 def join_all_events(evt_lst):
@@ -202,6 +205,7 @@ def split_file(src, N, path=None, dest=None, recreate=True):
     if not path_exists(dest):
         raise IOError("Bad destination at %s - Could not enter directory" % dest)
 
+    src = "%s/%s" % (path, src)
     #Parse the current rootfile and divide its trees up
     treecount = 0           #used for creating output filenames once.
     with rootpy.io.root_open(src) as s:
@@ -260,6 +264,22 @@ def divide_tree(N_PIPELINES):
     #Create a total of N_PIPELINES subtrees
     global tree, subtrees
 
+def add_event_branch(filename, path):
+    #Passed a root ttree, add event branch
+    filepath = "%s/%s" % (path, filename)
+    with rootpy.io.root_open(filepath, mode="UPDATE") as fh:
+        for subtree in get_next_tree(fh):
+            log.info("Adding branch 'event' to tree %s" % subtree.GetName())
+            try:
+                subtree.create_branches({'event': 'I'})
+            except ValueError:
+                #'event' branch already exists
+                return
+            for i in xrange(subtree.GetEntries()):
+                subtree.event = i
+                subtree.fill()
+            subtree.write()
+        return
 
 ######################################################################
 class cd:

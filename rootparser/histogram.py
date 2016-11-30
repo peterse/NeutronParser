@@ -121,7 +121,7 @@ def make_pair_lst(n_pairs):
         out.append( (name_theta, (90, 0, 180), "deg") )
         #Energy comparisons
         name_energy = make_n_comp_energy_name(tupl)
-    	out.append( (name_energy, (50, 0, 1200, 50, 0, 1200), "MeV", "MeV") )
+    	out.append( (name_energy, (50, 0, 1200, 50, 0, 1200), "%s (MeV)" % tupl[0], "%s (MeV)" % tupl[1]) )
         #Energy 1 vs Energy 2
     	name_rel = make_n_comp_rel_e_name(tupl)
     	out.append( (name_rel, (30, 0, 2), "MeV/MeV") )
@@ -187,7 +187,7 @@ def fill_hist(histname, *vals):
     #return a handle to the histogram
     hist_dct = IO.get_subhist()
     try:
-        log.info("getting PID %s from subhists" % os.getpid() )
+        #log.info("getting PID %s from subhists" % os.getpid() )
         hist_dct.get(histname).Fill(*vals)
     except KeyError:
         #This requested histogram does not exist; name passed wrong?
@@ -289,7 +289,7 @@ def make_comp_hists(lookup_dct):
         if n1 is not None and n0 is not None:
             #ENERGIES
             E_compare = make_n_comp_energy_name(n_pair)
-            log.info("filling %s with %d, %d" % (E_compare, n0[0], n1[0]))
+            #log.info("filling %s with %d, %d" % (E_compare, n0[0], n1[0]))
             fill_hist(E_compare, n0[0], n1[0])
             #DTHETA
             phi_compare = make_n_comp_theta_name(n_pair)

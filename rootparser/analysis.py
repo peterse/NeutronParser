@@ -16,7 +16,10 @@ import histogram as hi
 
 import rootpy
 import root_numpy as rnp
+
+#Numpy, and formatting
 import numpy as np
+np.set_printoptions(suppress=True)
 
 #evts and filters
 import event
@@ -27,6 +30,7 @@ sys.path.append("/home/epeters/NeutronParser/tests")
 import maketestfiles as testfile
 from parallel import ThreadManager
 from multiprocessing import Pool
+
 import inspect
 #logging
 from rootparser_exceptions import log
@@ -52,7 +56,6 @@ class EventSummary:
     apply filters before histogramming"""
     def __init__(self, index, datatype=0):
         #Instance attributes
-        self.particle_lst = []
         self.index = index         #event number
         self.datatype = datatype
 
@@ -68,12 +71,22 @@ class EventSummary:
         self.n_blobs = 0
         self.n_protons = 0
 
+        #neutrons in this event
+        self.lookup_dct = {}
+
         #angle comparisons
         self.mu_dot_n_T = None
 
         self.rvb = None
         #Post-Filter
         self.final_E_n = None       #Final neutron/blob energy
+
+    def __str__(self):
+        #A representation of this event; dump particles?
+        index = "Event %s" % str(self.index)
+        parts = "Neutrons: \n  %s" % "\n  ".join([str(k)+":"+str(v) for k,v in self.lookup_dct.iteritems()])
+        return "\n".join([index, parts, " "])
+        #return str(self.particle_lst)
 
 
 def MLsandbox(filename, path, target, dest, hist=True, filt=True, dump=True):
@@ -131,27 +144,45 @@ def testEventAccess(filename, path, report=True):
                         subtree.GetLeaf(br_name).GetValue()
                     except ReferenceError:
                         missing_br.append(br_name)
-
+            #'Event' branch
+            try:
+                subtree.GetLeaf("event").GetValue()
+            except ReferenceError:
+                missing_br.append("event")
             if report:
                 print "Tree %s missing branches:" % subtree.GetName()
                 for br in missing_br:
                     print "   ", br
 
-    #non-zero return idicates error
-    return any(missing_br)
+    # return a list of missingbranches
+    return missing_br
 
 
 
 
 
-def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True, ML=False):
-    #filename is the file being analyzed
-    #   path is its location
-    #target is the desired output filename
-    #   dest is its location
-    #High-level parsing routine
+def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
+    """
+    Using an input filename
+    Return:
+      The input tuple - this will be parsed to grab the target histograms
+    Args:
+    tupl components
+      [0] filename is the file being analyzed
+      [1] path is its location
+      [2] target is the desired output filename
+      [3] dest is its location
+
+    KWArgs:
+      filt:
+      dump:
+      hist:
+      ML:
+    """
     pid = os.getpid()
 
+
+    filename, path, target, dest = tupl[0], tupl[1], tupl[2], tupl[3]
     filepath = "%s/%s" % (path, filename)
     log.info("PID %s parsing %s" % (pid, filepath))
 
@@ -187,7 +218,7 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
                 #DEBUG:
                 if e_i > 10000:
                     break
-                if e_i % 1000 == 0:
+                if e_i % 10000 == 0:
                     log.info("Processing event %i" % e_i)
 
                 #PARTICLES
@@ -215,6 +246,8 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
 
                 #KINE-NEUTRON
                 mc_kine_n_P = make_kine_neutron(P_mu)
+                if mc_kine_n_P is None:
+                    continue
 
                 #VERTEX
                 mc_vtx = get_vtx(e_i, datatype=0)
@@ -224,7 +257,14 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
                     #FIXME: Not working right now- weirdness w TLorentzVector?
                     vtx = mc_vtx
 
-                #Summarize this event
+                # CONVERSIONS, ROTATIONS
+                mc_kine_n_P = Mm.convert_E2T(mc_kine_n_P, Mm.m_n)
+                mc_n_P = Mm.convert_E2T(mc_n_P, Mm.m_n)
+                #FIXME: Do we rotate the kine or make it using rotated mc?
+                #mc_kine_n_P = Mm.yz_rotation(mc_kine_n_P, datatype=0)
+                #mc_n_P = Mm.yz_rotation(mc_n_P, datatype=0)
+
+                #EVENT SUMMARY
                 evt = EventSummary(e_i, datatype)
                 evt.n_parts = 0
                 evt.n_neutrons = n_neutrons
@@ -233,24 +273,28 @@ def ParseEventsNP(filename, path, target, dest, hist=True, filt=True, dump=True,
                 #mc-specific metadata
                 if datatype == 0:
                     evt.int_type = get_mc_int_type(e_i)
+                #neutrons in this event
+                evt.lookup_dct = {
+                            "recon_kine_n_P": None,
+                             "mc_kine_n_P": mc_kine_n_P,
+                             "mc_n_P": mc_n_P,
+                             "n_blob": blob
+                             }
+                #print evt
 
-
-                #CALCULATED QUANTITIES
+                #FILTERS
 
                 #filters: 'continue' means we're done with this event
                 if not fi.AntiQE_like_event(evt):
                     #log.info("Event %i not CCQE-like" % e_i )
                     continue
 
-                #histogramming
-                lookup_dct = {
-                            "recon_kine_n_P": None,
-                             "mc_kine_n_P": mc_kine_n_P,
-                             "mc_n_P": mc_n_P,
-                             "n_blob": blob
-                             }
-                hi.make_comp_hists(lookup_dct)      #N-COMPARISONS
-                hi.make_neutron_hists(lookup_dct)   #INDIVIDUAL NEUTRONS
+
+
+                #HISTOGRAMMING
+
+                hi.make_comp_hists(evt.lookup_dct)      #N-COMPARISONS
+                hi.make_neutron_hists(evt.lookup_dct)   #INDIVIDUAL NEUTRONS
 
                 #Checking relative angles
 

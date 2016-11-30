@@ -86,7 +86,7 @@ def generate_MC(lightweight=False):
                             "mc_FSPartPy": "F",
                             "mc_FSPartPz": "F",
                             "mc_FSPartE": "F",
-                            "event": "I",
+                    #        "event": "I",
                             "mc_nFSPart": "I",
                             "mc_FSPartPDG": "I",
                             "mc_incoming": "I",
@@ -106,7 +106,7 @@ def generate_MC(lightweight=False):
 
 
     for j in xrange(filesize):
-        tree.event = j
+    #    tree.event = j
         tree.mc_nFSPart = 1 #For event checking
         if lightweight:
             tree.fill()

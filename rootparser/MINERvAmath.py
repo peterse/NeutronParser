@@ -2,6 +2,7 @@ import numpy as np
 import math
 
 
+
 #FIXME: where do we put numerical constants
 c = 3E8				#speed of light (m/s)
 m_p = 938.6			#mass of neutron (MeV/cc)
@@ -10,6 +11,8 @@ BE_p = 200				#Avg binding energy of proton (MeV)
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#ROTATIONS, CONVERSIONS
+
 def rot2D_matrix(theta):
 #Initialize a rotation matrix for a given theta, in radians
 	return ( (math.cos(theta), -math.sin(theta)), (math.sin(theta), math.cos(theta)) )
@@ -18,8 +21,10 @@ def rot2D_matrix(theta):
 THETA = 0
 rot_matrix = rot2D_matrix(THETA)
 
-def yz_rotation(p_vec):
+def yz_rotation(p_vec, datatype=0):
 #takes a 4vec (E, x, y, z) OR 3vec (x,y,z)
+#	datatype indicates how different particles are rotated depending on
+#	standards imposed by the higher powers
 #Returns the vector rotated according to Z-tilt of MINERvA
 	dims = len(p_vec)
 	if dims == 4:
@@ -40,7 +45,16 @@ def yz_rotation(p_vec):
 	elif dims == 3:
 		return (p_vec[0], cor_zy[1], cor_zy[0])
 
+def convert_E2T(arr, m):
+	"""
+	Convert the given 4-vector's Energy entry to kinetic energy = E-M
+	Should be called after all relativistic calculations are made
+	Args:
+		arr: an np array representing the 4-vector
+		m: The mass of the particle
+	"""
 
+	return np.array( [arr[0] - m, arr[1], arr[2], arr[3] ])
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #Particle attributes
@@ -83,7 +97,9 @@ def make_neutron_P(P_mu):
 	E_n = (B + A**2)/(2*A)
 	p_nz = (B - A**2) / (2*A)
 	if E_n < 0:
-		raise ValueError("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
+		#raise ValueError("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
+		#log.warning("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
+		print "MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n
 		return None
 #Get kinetic energies of neutrons
 	return np.array([E_n, -P_mu[1], -P_mu[2], p_nz])

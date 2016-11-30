@@ -1,0 +1,14 @@
+#!/bin/bash
+
+
+#Run the main program
+#Specify the settings and inputs for the run
+SCRIPT_HOME="$(dirname "$dir")"
+echo $SCRIPT_HOME
+#SOURCE_FILE="merged_CCQEAntiNuTool_minervamc_nouniverse_nomec.root"
+#SOURCE_PATH="~/NeutronParser/sample3"
+#TARGET_FILE="Analysis2.root"
+#TARGET_PATH=$SOURCE_PATH
+
+#exit 0
+#python main.py $SOURCE_FILE $SOURCE_PATH $TARGET_FILE $TARGET_PATH
