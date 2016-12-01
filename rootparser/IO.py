@@ -11,11 +11,13 @@ from rootparser_exceptions import log
 from rootpy.tree import Tree, TreeModel, FloatArrayCol
 from rootpy import stl #std library?
 
-
+#histogramming interfac
+import histogram as hi
 #import ROOT
 import os
 import sys
 import subprocess #call, check_output
+import shutil
 import math
 
 #Debugging
@@ -55,7 +57,55 @@ def put_subhist(hist_dct):
     pid = os.getpid()
     subhists[pid] = hist_dct
 
-def join_all_histograms():
+def join_all_histograms(file_lst, target, dest):
+    """
+    For a list of TFiles with identical content, add all hist content into
+    a single master histogram
+    Args:
+        file_lst: a list of strings for full paths of targets
+        dest: Where the merged file will be saved
+    Return:
+        String with full path of merged file
+
+    """
+    f_p = [(d,f) for d,f in [split_path(p) for p in file_lst] ]
+    target_path = "%s/%s" % (dest, target)
+
+    #copy the first file as a base for addition
+    shutil.copy(file_lst[0], target_path)
+
+
+
+
+
+
+
+
+    print target_path
+    with cd(dest):
+        with rootpy.io.root_open(target, "w") as s1:
+
+            #get a list of the histograms we're going to iterate over:
+            all_hists = []
+            for p, d, obj_lst in s1.walk():
+                for name in obj_lst:
+                    handle = s1.Get(name)
+                    print type(handle)
+            return
+
+
+
+            for other_file in file_lst[1:]:
+                with rootpy.io.root_open(other_file) as s2:
+                    #iterate over the histograms we know we've generated
+                    for histname in all_hists:
+                        hist1 = s1.Get(histname)
+                        hist2 = s2.Get(histname)
+                        s1.Get(histname).Add(hist1, hist2)
+                #skip those you can't find (try)
+
+        base = None
+
     return
 
 ######################################################################
@@ -108,7 +158,7 @@ def get_next_tree(fh):
 #Sub-Tree splitting:
 
 def path_exists(path):
-    #passed a path to a rootfile and the filename, check that both are valid
+    #check that the directory 'path' exists
     try:
         with cd(path) as d:
             pass
@@ -252,6 +302,11 @@ def get_tmp_dir():
     #TODO:
     #Use current path to find location of tmp?
     pwd = os.getcwd()
+
+def split_path(fstr):
+    #split the given filepath into directory, file
+    i = fstr.rfind("/")
+    return fstr[:i], fstr[i+1:]
 
 def get_trees(fh):
     #TODO:

@@ -149,7 +149,7 @@ def testEventAccess(filename, path, report=True):
                 subtree.GetLeaf("event").GetValue()
             except ReferenceError:
                 missing_br.append("event")
-            if report:
+            if report and any(missing_br):
                 print "Tree %s missing branches:" % subtree.GetName()
                 for br in missing_br:
                     print "   ", br
@@ -181,14 +181,11 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
     """
     pid = os.getpid()
 
-
     filename, path, target, dest = tupl[0], tupl[1], tupl[2], tupl[3]
     filepath = "%s/%s" % (path, filename)
     log.info("PID %s parsing %s" % (pid, filepath))
 
-
-
-    if hist or hist_target:
+    if hist:
         hist_target = "%s/%s" % (dest, target)
         #Initialize histograms
         export_lst = hi.extend_export_lst(hi.all_export_lst)
@@ -292,9 +289,9 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
 
 
                 #HISTOGRAMMING
-
-                hi.make_comp_hists(evt.lookup_dct)      #N-COMPARISONS
-                hi.make_neutron_hists(evt.lookup_dct)   #INDIVIDUAL NEUTRONS
+                if hist:
+                    hi.make_comp_hists(evt.lookup_dct)      #N-COMPARISONS
+                    hi.make_neutron_hists(evt.lookup_dct)   #INDIVIDUAL NEUTRONS
 
                 #Checking relative angles
 
@@ -324,8 +321,12 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
         if ML:
             tree_arr = rnp.tree2array(subtree)
 
-        #Write out histograms
-        hi.write_hists(hist_target)
+        if hist:
+            #Write out histograms
+            hi.write_hists(hist_target)
+
+        #FIXME? 0 indicates error-free run - better failure mode?
+        return 0
 
 @versioncontrol
 def get_mc_int_type(e_i, typ="MC_TYPE"):

@@ -22,6 +22,7 @@ import os       #getcwd()
 import random
 random.seed()
 
+SPLIT_FILES = None
 
 def get_ROOT_tree(filename, treename):
     f = ROOT.TFile.Open(filename, "read")
@@ -90,6 +91,9 @@ class IOTest(unittest.TestCase):
         tmp = "%s/tmp" % os.getcwd()
         N = 8
         file_lst = IO.split_file(testfile.MC_filename, 8, dest=tmp)
+        #keep for later use
+        global SPLIT_FILES
+        SPLIT_FILES = file_lst
         self.assertEqual(N, len(file_lst))
         for f in file_lst:
             try:
@@ -108,7 +112,13 @@ class IOTest(unittest.TestCase):
         self.assertEqual(count, testfile.n_trees)
         log.info("Counted %i trees in file %s" % (count, testfile.MC_filename) )
 
+    def test_join_all_histograms(self):
 
+        print SPLIT_FILES
+        merge_targets = SPLIT_FILES
+        target = "test_merge.root"
+        dest = testfile.TMP_HIST
+        IO.join_all_histograms(merge_targets, target, dest)
 
 
 if __name__ == "__main__":
