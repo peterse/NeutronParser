@@ -8,6 +8,8 @@ from rootpy import stl #std library?
 
 from rootpy.tree.treetypes import Array     #custom branching
 from rootpy.tree.treebuffer import TreeBuffer
+from rootpy.plotting import Hist, Hist2D    #sample hists
+
 import re       #regex compile, functions
 #Local python arrays for ROOT-like pointers
 from array import array
@@ -73,7 +75,7 @@ def generate_MC(lightweight=False):
     #Recreate the MC testfile
 
     print "Generating file %s" % MC_filename
-    f = root_open(MC_filename, "recreate")
+    f = root_open(MC_filename, "RECREATE")
 
 
 
@@ -86,13 +88,17 @@ def generate_MC(lightweight=False):
                             "mc_FSPartPy": "F",
                             "mc_FSPartPz": "F",
                             "mc_FSPartE": "F",
-                    #        "event": "I",
+                            "event": "I",
                             "mc_nFSPart": "I",
                             "mc_FSPartPDG": "I",
                             "mc_incoming": "I",
                             "mc_incomingE": "F",
 
                             })
+
+    hist_dct = {}
+    for br_name in tree.branchnames:
+        hist_dct[br_name] = Hist(100, 0., 10., name=br_name, title=br_name)
     #Custom branching: Hand-make a treebuffer and feed its special types into tree
     # print "Testing:"
     # r =  re.compile(TreeBuffer.ARRAY_PATTERN)
@@ -106,7 +112,7 @@ def generate_MC(lightweight=False):
 
 
     for j in xrange(filesize):
-    #    tree.event = j
+        tree.event = j
         tree.mc_nFSPart = 1 #For event checking
         if lightweight:
             tree.fill()
@@ -120,8 +126,14 @@ def generate_MC(lightweight=False):
         tree.mc_FSPartPy = p[1]
         tree.mc_FSPartPz = p[2]
         tree.mc_FSPartE = p[3]
-        tree.mc_FSPartPDG = 2112        #neutron
+        #Fill histograms
+        hist_dct["mc_FSPartPx"].Fill(p[0])
+        hist_dct["mc_FSPartPy"].Fill(p[1])
+        hist_dct["mc_FSPartPz"].Fill(p[2])
+        hist_dct["mc_FSPartE"].Fill( p[3])
 
+
+        tree.mc_FSPartPDG = 2112        #neutron
         tree.mc_incoming = -13          #neutrino
         tree.mc_incomingE = p[4]        #neutrino energy
 
@@ -143,6 +155,9 @@ def generate_MC(lightweight=False):
                 vec[i] = blob[i]
             tree.fill()
 
+
+    #for k, hist in hist_dct.iteritems():
+        #hist.Write()
     tree.write()
 
     #second tree for testing tree parsing

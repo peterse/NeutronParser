@@ -124,6 +124,7 @@ class IOTest(unittest.TestCase):
 if __name__ == "__main__":
     #Initialize some globals to play with
     testfile.recreate_testfile()
+    sys.exit()
     dummyIO = IO.RootIOManager(testfile.MC_filename)
     tree = dummyIO.list_of_trees[0]
     tree.GetEvent()
