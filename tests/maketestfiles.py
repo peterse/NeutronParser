@@ -98,7 +98,8 @@ def generate_MC(lightweight=False):
 
     hist_dct = {}
     for br_name in tree.branchnames:
-        hist_dct[br_name] = Hist(100, 0., 10., name=br_name, title=br_name)
+        if "mc_FSPart" in br_name:
+            hist_dct[br_name] = Hist(100, 0., 10., name=br_name, title=br_name)
     #Custom branching: Hand-make a treebuffer and feed its special types into tree
     # print "Testing:"
     # r =  re.compile(TreeBuffer.ARRAY_PATTERN)
@@ -156,8 +157,8 @@ def generate_MC(lightweight=False):
             tree.fill()
 
 
-    #for k, hist in hist_dct.iteritems():
-        #hist.Write()
+    for k, hist in hist_dct.iteritems():
+        hist.Write()
     tree.write()
 
     #second tree for testing tree parsing

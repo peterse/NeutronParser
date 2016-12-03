@@ -64,7 +64,8 @@ all_export_lst = [
                 ("Z6_Nblob_vs_MC", (50, 0, 600, 50, 0, 600), "E_blob (MeV)", "E_MC (MeV)")
                 ]
 
-
+#rootpy isn't very helpful in providing class type for hists
+hist_type = type(Hist(1,0,1))
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #Neutron comparison names for backwards compatibility
