@@ -118,8 +118,14 @@ class IOTest(unittest.TestCase):
 
     def test_join_all_histograms(self):
 
-        print SPLIT_FILES
-        merge_targets = SPLIT_FILES
+        #pre = os.getcwd()
+        #SPLIT_FILES = ["%s/tmp/%s" % (pre, fname) for fname in os.listdir("%s/tmp" % os.getcwd()) ]
+        global SPLIT_FILES
+        if SPLIT_FILES is None:
+            log.error("Need to re-run split_file test and keep result paths")
+            raise ValueError
+        else:
+            merge_targets = SPLIT_FILES
         target = "test_merge.root"
         dest = testfile.TMP_HIST
         IO.join_all_histograms(merge_targets, target, dest)
