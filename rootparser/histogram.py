@@ -202,6 +202,7 @@ def write_hists(path):
     #write a subprocess' histograms to a .root file at path
     #TODO: overwriting histograms?
     log.info("PID %i writing histograms to %s" % (os.getpid(), path))
+    #recreate hists, because I assume I trashed them on the last analysis
     with rootpy.io.root_open(path, "recreate") as fh:
         for k, hist in IO.get_subhist().iteritems():
             hist.Write()

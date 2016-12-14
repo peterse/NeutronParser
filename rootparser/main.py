@@ -30,7 +30,7 @@ import rootpy   #root_open
 
 #Analysis framework
 import event
-from analysis import ParseEventsNP, testEventAccess
+from analysis import ParseEventsNP, testEventAccess, testDuplicateAccess
 
 #Debugging
 import MINERvAmath as Mm
@@ -59,6 +59,7 @@ Time = Timer(quiet=True)                            #Timing
 
 
 def main():
+    duplicate = testDuplicateAccess(filename, PATH)
     missing = testEventAccess(filename, PATH)
     if "event" in missing:
         IO.add_event_branch(filename, PATH)
@@ -66,7 +67,7 @@ def main():
     if any(missing):
         log.error("Incomplete set of branches: Edit analysis and rerun")
         sys.exit()
-
+    return
     #Parallel ParseEventsNP
     """
     TODO:
@@ -89,15 +90,10 @@ def main():
     paths = [tmp_dest for i in range(len(filenames))]
     targets = ["hist%i.root" % i for i in range(len(filenames))]
     dests = [tmp_dest for i in range(len(filenames))]
-    #the argument package for ParseEventsNP
+    #the argument package for ParseEventsNP:
+    #(file_to_analyze, path, target_histogram, target_directory)
     parallel_args = zip(filenames, paths, targets, dests)
-    for entry in parallel_args:
-        print entry
 
-
-
-
-    sys.exit()
     Time.start("Parse Events")
     #Parse the separate files in parallel
     complete_lst = Parallel.run(ParseEventsNP, parallel_args, ParallelPool=Pool)
@@ -110,7 +106,10 @@ def main():
     else:
         merge_targets = ["%s/%s" % (d, t) for d,t in zip(dests, targets)]
 
+    print merge_targets
+
     #Join parallel-processed histogram files
+    all_hist_file = IO.join_all_histograms(merge_targets, target, dest)
 
 
     return 0

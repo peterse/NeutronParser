@@ -107,6 +107,35 @@ def MLsandbox(filename, path, target, dest, hist=True, filt=True, dump=True):
             print tree_arr.dtype.names
             print tree_arr[0]
 
+def testDuplicateAccess(filename, path, report=True):
+    #Passed a root filename, attempt to discover duplicate trees!
+
+    filepath = "%s/%s" % (path, filename)
+    used_names = []
+
+    #FIXME: no idea what's going on....
+    """
+    !
+    !
+    !
+    !
+    """
+    return
+    with rootpy.io.root_open(filepath, "UPDATE") as fh:
+        #BUG: rootpy couldn't parse objects like this...
+        for sub in fh.GetListOfKeys():
+            treename = sub.GetName()
+            #Deal with trees that are named the same
+            if treename in used_names:
+                new_name = treename+"x"
+                log.warning("Modifying treename %s -> %s in %s" %\
+                            (treename, new_name, filename) )
+                sub.SetName(new_name)
+                used_names.append(new_name)
+            else:
+                used_names.append(treename)
+    return
+
 def testEventAccess(filename, path, report=True):
     #Passed a root filename, attempt to call all functions
     #Return a report (object?) on the accessible features
@@ -156,9 +185,6 @@ def testEventAccess(filename, path, report=True):
 
     # return a list of missingbranches
     return missing_br
-
-
-
 
 
 def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
@@ -286,8 +312,6 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                     #log.info("Event %i not CCQE-like" % e_i )
                     continue
 
-
-
                 #HISTOGRAMMING
                 if hist:
                     hi.make_comp_hists(evt.lookup_dct)      #N-COMPARISONS
@@ -297,12 +321,6 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
 
                 #MC kine-neutron vs. SINGLE mc neutron
                 dangle, separation = Mm.compare_vecs(mc_n_P, mc_kine_n_P)
-                # print mc_n_P, type(mc_n_P)
-                # print mc_kine_n_P, type( mc_kine_n_P)
-                # print P_mu, type(P_mu)
-                # print dangle
-
-                #print dangle
 
                 continue
                 #ML training set
@@ -317,9 +335,12 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
             #only iterate first tree?
             break
 
-        #Set up ML arrays
+        #Set up a dct that can become a simple column/array dataframe
         if ML:
-            tree_arr = rnp.tree2array(subtree)
+            out = {
+                    "sf": None
+            }
+            #tree_arr = rnp.tree2array(subtree)
 
         if hist:
             #Write out histograms

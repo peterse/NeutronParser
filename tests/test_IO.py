@@ -128,7 +128,7 @@ class IOTest(unittest.TestCase):
             merge_targets = SPLIT_FILES
         target = "test_merge.root"
         dest = testfile.TMP_HIST
-        IO.join_all_histograms(merge_targets, target, dest)
+        hist_out = IO.join_all_histograms(merge_targets, target, dest)
 
 
 if __name__ == "__main__":

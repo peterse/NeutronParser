@@ -68,7 +68,7 @@ def join_all_histograms(file_lst, target, dest):
     Return:
         String with full path of merged file
 
-    Postcondition: One target histogram file will be destroyed!
+    Warning! One target histogram file will be destroyed!
     """
     f_p = [(d,f) for d,f in [split_path(p) for p in file_lst] ]
     target_path = "%s/%s" % (dest, target)
@@ -76,39 +76,44 @@ def join_all_histograms(file_lst, target, dest):
     #copy the first file as a base for addition
     #shutil.copy(file_lst[0], target_path)
 
+
     #build upon the first rootfile's histograms
     base = "%s/%s" % f_p[0]
-    print "base: %s" % base
+    log.info("The following histograms will be summed into %s\n" % base \
+            + "  \n".join(["%s/%s" % (d,f) for d,f in f_p[1:]]) )
+
+    #get a list of the histograms we're going to iterate over:
+    all_hists = []
     with cd(dest):
-        with rootpy.io.root_open(base, "UPDATE") as s1:
-
-            #get a list of the histograms we're going to iterate over:
-            all_hists = []
+        with rootpy.io.root_open(base) as s1:
             for p, d, obj_lst in s1.walk():
-
                 for name in obj_lst:
-                    print name
                     handle = s1.Get(name)
                     if type(handle) is hi.hist_type:
                         all_hists.append(name)
-            print all_hists
-            for p, d, obj_lst in s1.walk():
-                for name in obj_lst:
-                    handle = s1.Get(name)
-                    #For each histogram, add to it hists from all other files
-                    if type(handle) is hi.hist_type:
-                        for other_file in file_lst[1:]:
-                            with rootpy.io.root_open(other_file) as s2:
-                                #iterate over the histograms we know we've generated
-                                for histname in all_hists:
-                                    hist1 = s1.Get(histname)
-                                    hist2 = s2.Get(histname)
-                                    s1.Get(histname).Add(hist1, hist2)
-                #skip those you can't find (try)
 
-        base = None
+        i=0
+        for other_file in file_lst[1:]:
+            #BUG: opening these as inner context dumped entire contents into outer context...
+            with rootpy.io.root_open(other_file, "r") as s2:
+                #iterate over the histograms we know we've generated
+                for histname in all_hists:
+                    hist2 = s2.Get(histname)
+                    with rootpy.io.root_open(base, "UPDATE") as s1:
+                        #add the histograms into a clone...
+                        hist1 = s1.Get(histname)
+                        hist1.Add(hist1, hist2)
+                        hist1.Write("temp")
+                        #...and murder the original - THE PRESTIGE!
+                        s1.Delete(histname+";1")
+                        s1.Get("temp").SetName(histname)
+                        s1.Get(histname).Write()
+                        s1.Delete("temp;1")
 
-    return
+            #skip those you can't find (try)
+
+    log.info("Histograms collapsed into file %s" % base)
+    return base
 
 ######################################################################
 
@@ -151,10 +156,12 @@ def get_next_tree(fh):
     #Warning: (I think) this must be fully exhausted in the file context...
     for path, dirs, obj_lst in fh.walk():
         for name in obj_lst:
+            print name
+        for name in obj_lst:
             handle = fh.Get(name)
             if type(handle) is rootpy.tree.tree.Tree:
                 yield handle
-                continue    #move onto the next tree
+                #continue    #move onto the next tree
 
 ######################################################################
 #Sub-Tree splitting:
@@ -242,7 +249,7 @@ def split_file(src, N, path=None, dest=None, recreate=True):
             if N_files == N:
                 return ["%s/%s" % (dest, fname) for fname in fnames]
             else:
-                log.warning("Number of files deos not match N_pipelines; recreateing files...")
+                log.warning("Number of files at %s does not match N_pipelines; recreating files..." % dest)
 
     #Make sure the source file and its path are valid
     if not path_exists(path):
@@ -263,10 +270,14 @@ def split_file(src, N, path=None, dest=None, recreate=True):
 
     all_hists = []
     all_trees_meta = []  #list of (tree_handle, cuts_list, evt_str)
+    fnames = []          #filenames to return
+
+    log.info("Slicing %s into %i files at %s" % (src, N, dest))
     #CONTEXT: SOURCE FILE FROM WHICH WE WILL CUT TREES AND HISTS
     with rootpy.io.root_open(src, "READ") as s:
 
-        #1: get a list of all the histograms in this file
+        #FIXME : we don't really need to copy over hists
+        # #1: get a list of all the histograms in this file
         for path, dirs, obj_lst in s.walk():
             for name in obj_lst:
                 handle = s.Get(name)
@@ -296,7 +307,6 @@ def split_file(src, N, path=None, dest=None, recreate=True):
 
                     #OUTER CONTEXT: SOURCE FILE FROM WHICH WE WILL CUT TREES AND HISTS
                     #INNER CONTEXT(S): ALL TARGET FILES INTO WHICH WE WILL WRITE CUT TREES/HISTS
-                    fnames = []
                     with cd(dest):
                         #Working in destination directory now
                         for i in range(len(cuts)):
@@ -321,17 +331,19 @@ def split_file(src, N, path=None, dest=None, recreate=True):
                                 copied = handle.CopyTree(cutstring)
 
                                 #Move the histograms INTO this file once.
+                                # if i_tree == 0:
+                                #     ROOT.gROOT.SetBatch()
+                                #     c = ROOT.TCanvas()
+                                #FIXME : we don't really need to copy over hists
+                                #We want to write once.
                                 if i_tree == 0:
-                                    ROOT.gROOT.SetBatch()
-                                    c = ROOT.TCanvas()
                                     for i, hist in enumerate(all_hists):
-
-                                        hist.Draw(cutstring)
-                                        c.Update()
-                                        #print i, hist.GetName()
                                         hist.Write()
+                                #         hist.Draw(cutstring)
+                                #         c.Update()
+                                #         #print i, hist.GetName()
 
-                                #t.write()
+                                t.write()
                                     #NEED TO GET THE ACTUALLY HISTOGRAM DRAWN IN THE TREE!!!
                                     # hist = this_tree.Draw(histname, selection=cutstring, hist=histname)
                                     # hist = ROOT.gPad.GetPrimitive(histname)
@@ -340,8 +352,8 @@ def split_file(src, N, path=None, dest=None, recreate=True):
 
 
                                 #Add filename upon first successful write
-                                if i_tree == 0:
-                                    fnames.append("%s/%s" % (dest, fname))
+                            if i_tree == 0:
+                                fnames.append("%s/%s" % (dest, fname))
 
     #Return a list of full path/filename
     return fnames
@@ -376,8 +388,11 @@ def add_event_branch(filename, path):
             try:
                 subtree.create_branches({'event': 'I'})
             except ValueError:
-                #'event' branch already exists
+                log.info("Overwriting 'event' branch for tree %s in %s" % (subtree.GetName(), filepath))
+                subtree.GetListOfBranches().Remove("event")
+                subtree.write()
                 return
+            print subtree.GetEntries()
             for i in xrange(subtree.GetEntries()):
                 subtree.event = i
                 subtree.fill()
