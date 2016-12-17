@@ -13,7 +13,7 @@ import root_numpy
 import IO
 import maketestfiles as testfile
 
-import analysis
+import learn
 
 #For parallel computation
 import parallel
@@ -23,16 +23,13 @@ Parallel = ThreadManager(n_processes=parallel.N_THREADS)     #Threading
 class AnalysisTest(unittest.TestCase):
 
 
-    def test_ParseEventsNP(self):
-        #non-OO version for event parsing; still uses cut subtrees
-        pid = os.getpid()
+    def test_convert2numpy(self):
+        test_dct = {}
+        learn.make_clean_data(testfile.MC_filename, test_dct)
+        log.info("Testing root2array function")
 
-        filename = testfile.MC_filename
-        path = os.getcwd()
-        target = "test_analysis.root"
-        dest = os.getcwd()
 
-        analysis.ParseEventsNP(filename, path, target, dest)
+
 if __name__ == "__main__":
 
     testfile.recreate_testfile()
