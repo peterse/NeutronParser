@@ -6,7 +6,7 @@ SCRIPT_HOME="$(dirname "$PWD")"
 echo $SCRIPT_HOME
 
 SOURCE_FILE="merged_CCQEAntiNuTool_minervamc_nouniverse_nomec.root"
-SOURCE_PATH="~/NeutronParser/sample3"
+SOURCE_PATH="~/NeutronParser/sample4"
 TARGET_FILE="Analysis3.root"
 TARGET_PATH=$SOURCE_PATH
 TMP_DEST="~/NeutronParser/temp"
