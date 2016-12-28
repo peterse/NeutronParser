@@ -13,6 +13,7 @@ import os
 #File management
 import IO
 import histogram as hi
+import ROOT
 
 import rootpy
 import root_numpy as rnp
@@ -89,51 +90,77 @@ class EventSummary:
         #return str(self.particle_lst)
 
 
-def MLsandbox(filename, path, target, dest, hist=True, filt=True, dump=True):
-    pid = os.getpid()
-    filepath = "%s/%s" % (path, filename)
-    log.info("PID %s parsing %s" % (pid, filepath))
 
-    with rootpy.io.root_open(filepath) as fh:
-        for subtree in IO.get_next_tree(fh):
-            #pass the tree to the global space for access by funcs
-            IO.put_subtree(pid, subtree)
-
-            #convert our subtree into an np array
-            #TODO:
-            datatype = 0
-            filterlst = make_filter_list(datatype)
-            tree_arr = rnp.tree2array(subtree)
-            print tree_arr.dtype.names
-            print tree_arr[0]
 
 def testDuplicateAccess(filename, path, report=True):
-    #Passed a root filename, attempt to discover duplicate trees!
+    """
+    Passed a root filename, attempt to discover duplicate trees
+    Warning! This will edit the names of trees in the file
+    """
 
     filepath = "%s/%s" % (path, filename)
-    used_names = []
 
-    #FIXME: no idea what's going on....
-    """
-    !
-    !
-    !
-    !
-    """
-    return
-    with rootpy.io.root_open(filepath, "UPDATE") as fh:
-        #BUG: rootpy couldn't parse objects like this...
+    #1 - Check if duplicates exist
+    #BUG: cannot use rootpy interface - doesn't read TKeys
+    used_names = []
+    duplicate = False
+    with rootpy.io.root_open(filepath, "read") as fh:
         for sub in fh.GetListOfKeys():
-            treename = sub.GetName()
-            #Deal with trees that are named the same
-            if treename in used_names:
-                new_name = treename+"x"
-                log.warning("Modifying treename %s -> %s in %s" %\
-                            (treename, new_name, filename) )
-                sub.SetName(new_name)
-                used_names.append(new_name)
+            name = sub.GetName()
+            #I have to assume TKeys and TTrees share the name for now
+            if name not in used_names:
+                used_names.append(name)
             else:
-                used_names.append(treename)
+                duplicate = True
+    if duplicate == False:
+        log.info("No duplicated detected - file %s good.", filepath)
+        return
+
+    #2 - if we find a duplicate, tear the whole thing down.
+    with rootpy.io.root_open(filepath, "UPDATE") as fh:
+        #BUG: rootpy couldn't see the duplicate tree objects like this...
+        # for path, dirs, obj_lst in fh.walk():
+
+        i = 0          #indexing name
+        for sub in fh.GetListOfKeys():
+            current_name = "Tree%i" % i
+            old_name = sub.ReadObj().GetName()
+            log.info("Changing tree '%s' to '%s'" % (old_name, current_name))
+            #fh.Get(old_name).Write(current_name)
+            sub.SetName(current_name)
+            fh.Get(old_name).SetName(current_name)
+            #fh.Write(filename, 2) #opt=2 - OVERWRITE mode to kill previous 'cycles' of TTrees
+            #sub.ReadObj().SetName(current_name)
+            #fh.Get(old_name).Write(current_name)
+            #fh.Delete(old_name)
+            #fh.Write()
+            i+=1
+
+    with rootpy.io.root_open(filepath, "UPDATE") as fh:
+        for path, dirs, obj_lst in fh.walk():
+            for name in obj_lst:
+                #currently both required
+                fh.Get(name).SetName(name)  #Changing the tree name
+                fh.Get(name).Write(name, ROOT.TObject.kOverwrite)    #Changing the structure name
+                    #opt=2 - OVERWRITE mode to kill previous
+                #fh.Delete(name+";")
+                #fh.Delete(name)
+    #
+    # with rootpy.io.root_open(filepath, "read") as fh:
+    #     for path, dirs, obj_lst in fh.walk():
+    #         for name in obj_lst:
+    #             print "object name: ", name
+    #             print "structure name: ", fh.Get(name).GetName()
+            # #Deal with trees that are named the same
+            # if treename in used_names:
+            #     new_name = treename+"x"
+            #     log.warning("Modifying treename %s -> %s in %s" %\
+            #                 (treename, new_name, filename) )
+            #     #sub.SetName(new_name)
+            #     s1.Delete(treename)
+            #     used_names.append(new_name)
+            # else:
+            #     used_names.append(treename)
     return
 
 def testEventAccess(filename, path, report=True):
@@ -178,6 +205,7 @@ def testEventAccess(filename, path, report=True):
                 subtree.GetLeaf("event").GetValue()
             except ReferenceError:
                 missing_br.append("event")
+
             if report and any(missing_br):
                 print "Tree %s missing branches:" % subtree.GetName()
                 for br in missing_br:
@@ -218,7 +246,16 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
         subhist_dct = hi.init_hist_dct(export_lst)
         IO.put_subhist(subhist_dct)
 
-
+    #Set up a dct that can become a simple column/array dataframe
+    #Contains tags, classifications
+    if ML:
+        ML_out = {
+                "event": [],            #this event
+                "blob_good": [],        #bool: was the blob a 'good' fit?
+                "CCQE": [],             #bool: was this event CCQE?
+                "blob_dtheta": [],      #float: how bad the angle was off?
+                "blob_dE": [],          #float: how bad was the energy off?
+        }
 
     #Parse input files
     with rootpy.io.root_open(filepath) as fh:
@@ -267,6 +304,17 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                 else:
                     continue        #FIXME: apply filter!
 
+                """
+                Neutron notes from Tejin:
+                - blob is >100mm from muon track
+                - vtx: is fiducial, is tracker region
+                - muon: Single mu+
+
+                -Measure theta_c -> angle of neutron blob below plane of ???
+                    -HEIDI: What is that coordinate system in Tejin pg. 16/
+
+                """
+
                 #KINE-NEUTRON
                 mc_kine_n_P = make_kine_neutron(P_mu)
                 if mc_kine_n_P is None:
@@ -298,10 +346,10 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                     evt.int_type = get_mc_int_type(e_i)
                 #neutrons in this event
                 evt.lookup_dct = {
-                            "recon_kine_n_P": None,
-                             "mc_kine_n_P": mc_kine_n_P,
-                             "mc_n_P": mc_n_P,
-                             "n_blob": blob
+                                    "recon_kine_n_P": None,
+                                    "mc_kine_n_P": mc_kine_n_P,
+                                    "mc_n_P": mc_n_P,
+                                    "n_blob": blob
                              }
                 #print evt
 
@@ -321,9 +369,21 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
 
                 #MC kine-neutron vs. SINGLE mc neutron
                 dangle, separation = Mm.compare_vecs(mc_n_P, mc_kine_n_P)
-
-                continue
+                dE = 0.
+                blob_good = False
                 #ML training set
+                if ML:
+                    ML_out.get("event").append(e_i)
+                    ML_out.get("CCQE").append(True)
+                    ML_out.get("blob_good").append(blob_good)
+                    ML_out.get("blob_dtheta").append(blob_good)
+                    ML_out.get("blob_dE").append(dE)
+                    #Pass along our selected neutrons
+                    for k_n, vec in evt.lookup_dct.iteritems():
+                        ML_out[k_n] = vec
+                continue
+
+
                 #TODO: IF this is a good kine event,
                 if True:
                     category_lst[e_i] = 1
@@ -335,19 +395,19 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
             #only iterate first tree?
             break
 
-        #Set up a dct that can become a simple column/array dataframe
-        if ML:
-            out = {
-                    "sf": None
-            }
-            #tree_arr = rnp.tree2array(subtree)
+
 
         if hist:
             #Write out histograms
             hi.write_hists(hist_target)
 
-        #FIXME? 0 indicates error-free run - better failure mode?
-        return 0
+        if ML:
+            #package dct contents into np.arrays
+            for k, v in ML_out:
+                ML_out[k] = np.array(v)
+            return ML_out
+        else:
+            return
 
 @versioncontrol
 def get_mc_int_type(e_i, typ="MC_TYPE"):

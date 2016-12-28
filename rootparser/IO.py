@@ -153,11 +153,18 @@ def get_next_tree(fh):
     #Given a  rootfile handle, generate the next tree object
     #Precondition: fh must be an active (open) file handle
     #FIXME:
-    #Warning: (I think) this must be fully exhausted in the file context...
+    #FIXME: (I think) this must be fully exhausted in the file context...
+    #FIXME: needs to give ONLY TREES to maintain backwards compatibility
+
+    # for sub in fh.GetListOfKeys():
+    #     name = sub.ReadObj().GetName()
+    #     yield fh.Get(name)
+
+
     for path, dirs, obj_lst in fh.walk():
         for name in obj_lst:
-            print name
-        for name in obj_lst:
+            # log.info("name "+ name)
+            # log.info("getname "+ fh.Get(name).GetName())
             handle = fh.Get(name)
             if type(handle) is rootpy.tree.tree.Tree:
                 yield handle
@@ -383,23 +390,72 @@ def add_event_branch(filename, path):
     #Passed a root ttree, add event branch
     filepath = "%s/%s" % (path, filename)
     with rootpy.io.root_open(filepath, mode="UPDATE") as fh:
-        for subtree in get_next_tree(fh):
-            log.info("Adding branch 'event' to tree %s" % subtree.GetName())
-            try:
-                subtree.create_branches({'event': 'I'})
-            except ValueError:
-                log.info("Overwriting 'event' branch for tree %s in %s" % (subtree.GetName(), filepath))
-                subtree.GetListOfBranches().Remove("event")
-                subtree.write()
-                return
-            print subtree.GetEntries()
-            for i in xrange(subtree.GetEntries()):
+        for i, subtree in enumerate(get_next_tree(fh)):
+        # for path, dirs, obj_lst in fh.walk():
+        #     for treename in obj_lst:
+        #         subtree = fh.Get(treename)
+            brname = "event"
+            treename = subtree.GetName()
+            log.info("Adding branch '%s' to tree %s" % (brname, treename))
+            #BUG? for the second tree in this iteration, the create_branches
+            #   command gives a 'with the same name' error = implying it sees
+            #   a branch by the name of 'event' in the new tree...
+            subtree.create_branches({"event": "I"})
+            #subtree.Branch(brname, 0)
+            #subtree.write()
+            #fh.Get(treename).Write(treename, 2)
+            #subtree.write()
+            #BUG: GetEntries() returns half of the true no. events...
+            #   ... or somewhere in the writing process I'm doubling the entries
+            N = subtree.GetEntries()
+
+            log.info("Writing %i entries to 'event' branch in %s" % (N, subtree.GetName()))
+            # for br in subtree.iterbranchnames():
+            #     if br == brname:
+            #         print "Found event branch"
+            #print "tree has event branch? "+str(subtree.has_branch(brname))
+
+            #These set write status
+            #subtree.SetBranchStatus("*",0)
+            #subtree.SetBranchStatus(brname, 1)
+
+            #Fill directly into the branch object
+            for i in xrange(N):
+                subtree.GetEntry(i)
                 subtree.event = i
-                subtree.fill()
-            subtree.write()
+                subtree.GetBranch(brname).Fill()
+
+            fh.Get(treename).Write(treename, 2)
+            return
+
+                #subtree.create_branches({brname: 'I'})
+
+                # try:
+                #
+                # except ValueError:
+                #     log.info("Overwriting 'event' branch for tree %s in %s" % (subtree.GetName(), filepath))
+                #     subtree.GetListOfBranches().Remove(subtree.GetBranch("event"))
+                #     subtree.write(subtree.GetName(), 2)
+                #     return
+                #     subtree.create_branches({'event': 'I'})
+
+
+                #PROBLEM: Tree1 has 3M entries but 1.8M entries are getting written to its event branch
+                #This corresponds to n_entries in Tree0
+
+                #Tree0 is getting misread as to have an event branch already
+                #There is crosstalk in the tree reading systme:
+                    #GetEntries() reads from Tree0
+                    #GetListOfBrnachs() reads from Tree1
+                    #Happens event though these are confirmed to be different trees per iteration
+
+                #Solutions?:
+                #   don't fuck with rootpy.io
+                #
+
         return
 
-######################################################################
+######################################################################lp
 class cd:
     """Context management for directory changes"""
     def __init__(self, new_path):
@@ -532,6 +588,29 @@ datatype_lst = ["MC", "DATA", "RECON"]
 def update_lookup_dct():
     return
 
+def expand_prefix(br_name):
+    #Passed a branchname prefix string, return a list
+    #of the expanded branches
+    if br_name == "CCQEAntiNuTool_isoblob":
+        suffs = ["E", "X", "Y", "Z"]
+    elif br_name == "mc_FSPartP":
+        suffs = ["x", "y", "z"]
+    else:
+        raise ValueError("Branch prefix %s not recognized" % br_name)
+    return [br_name+suffix for suffix in suffs]
+
+def is_prefix_br(br_name):
+    #passed a branch name string, use lookup_dct to determine
+    #if its a prefix-name
+
+    for k, v in lookup_dct.iteritems():
+        if v == None:
+            continue
+        #cover the prefix branchname case
+        if v in br_name:
+            return "_PREFIX" in k
+    raise ValueError("Branch  %s not recognized" % br_name)
+
 #Set up wrappers for implementing functions specific to a version of a tree
 #BASE Particle utilities must take the names of the branches they're
 #searching as args
@@ -549,6 +628,7 @@ def versioncontrol(func):
 
     return substitute_and_call
 
+
+
 if __name__ == "__main__":
-    ()
     pass

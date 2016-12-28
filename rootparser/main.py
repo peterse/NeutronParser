@@ -67,21 +67,16 @@ def main():
     if any(missing):
         log.error("Incomplete set of branches: Edit analysis and rerun")
         sys.exit()
-    return
-    #Parallel ParseEventsNP
-    """
-    TODO:
-        -change func params to tupl of current params?
-        - output full name/PATH of target
-        -merge target histogram files
+    else:
+        log.info("All branches present in tree %s", filename)
 
-    """
     # #open the file and make a map of parsed events
     #
     # #divide the file into the temporary directory and put together
     #The filenames and targets from this routine are stored in the temp dest
     filenames = IO.split_file(filename, N_THREADS, path=PATH, dest=tmp_dest, recreate=False)
-    #just the filenames...
+
+    #Create ParseEvents args package using just filenames
     temp = []
     for fullpath in filenames:
         p, fname = IO.split_path(fullpath)
