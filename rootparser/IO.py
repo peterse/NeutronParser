@@ -576,7 +576,8 @@ lookup_dct = {
             "DATA_INCOMING_PART": None,
             "DATA_BLOB_PREFIX": "CCQEAntiNuTool_isoblob",
 
-            "RECON_VTX": "CCQEAntiNuTool_vtx"
+            "RECON_VTX": "CCQEAntiNuTool_vtx",
+            "EVENT_BR": "event"
             }
 
 #Ordered list of ROOT file-type
@@ -608,7 +609,8 @@ def is_prefix_br(br_name):
             continue
         #cover the prefix branchname case
         if v in br_name:
-            return "_PREFIX" in k
+            #the br_name is either the expanded prefix or the prefix
+            return "_PREFIX" in k and v == br_name
     raise ValueError("Branch  %s not recognized" % br_name)
 
 #Set up wrappers for implementing functions specific to a version of a tree

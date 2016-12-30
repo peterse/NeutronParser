@@ -60,6 +60,29 @@ def branches_to_get():
 
     return out
 
+
+
+
+def pad_array(arr):
+    """
+    Given a ragged array of arrays, pad the array entries
+    By default, pad to the largest array length to preserve all data
+    """
+
+    #Get a list of entry lengths for the ragged array
+    lens = np.array( map(lambda x: len(x), arr) )
+    N = max(lens)
+
+    pad_lens = N - lens
+    pads = [np.zeros(L) for L in pad_lens]
+
+    merged = [None for i in range(len(arr))]
+    for i, (row, pad) in enumerate(zip(arr, pads)):
+        merged[i] = np.concatenate( (row, pad) )
+
+    return np.array(merged)
+
+
 def flatten_array(arr):
     """
     Take the given np.array and remove nested tupls. Send the tupl components to
@@ -71,13 +94,54 @@ def flatten_array(arr):
     the same columns as the input arr
     """
 
-    #FIXME
-    #Current strategy: Allow a maximum of 10 particles , 10 blobs
-    #Make a new ndarray with names as col[i] for i-many entries
-    N_MAX = 10
-    fieldnames = []
-    formats = []
+    new_arrs = []
+    base = "uncomparable_string"
+    for i, name in enumerate(arr.dtype.names):
+
+        dt = arr.dtype.fields[name][0]
+        #Flatten columns whose entries are objects == np.arrays
+        if dt.hasobject:
+            # 1: produce a padded array for this column
+            padded = pad_array(arr[name])
+            dims = np.shape(padded)
+
+            #2: generate new formats and fieldnames
+            fieldnames = [name+str(j) for j in range(dims[1])]
+            formats = [type(val) for val in padded[0]]
+            dt_dct = dict(names=fieldnames, formats=formats)
+
+            #3: produce a new structured array based on this data
+            #Bit of a hack to get this to behave...
+            new = np.core.records.fromarrays(padded.transpose(), dtype=dt_dct)
+            #I'm taking it on good faith that padding succeeded
+            #new = new.reshape(len(new), len(new[0]))
+        else:
+            #Otherwise, keep scalar columns (but make them columns!)
+            dt_dct = dict(names=[name], formats=[type(arr[name][0])] )
+            print dt_dct
+            new = np.array(arr[name], dtype=dt_dct)
+            new = new.reshape(len(new), 1)
+
+        print i
+        #4 stack these columns onto the rest of our flattened arrs
+        if base == "uncomparable_string":
+            base = new
+        else:
+            print np.shape(base)
+            print np.shape(new)
+            return base, new
+
+            base = np.hstack( (base,new) )
+        if i == 1:
+            return base
+
+    #4: concatenate this structured array to the rest
+
+
+    return
     for i, col in enumerate(arr[0]):
+
+        #Make a new ndarray with names as col[i] for i-many entries
 
         #get current field info, datatype, etc.
         fieldname = arr.dtype.names[i]
@@ -111,7 +175,12 @@ def flatten_array(arr):
             fieldnames.append(fieldname)
             formats.append(dt)
 
-    dt_dct = dict(names=fieldnames, formats=formats)
+
+    print dt_dct
+    return dt_dct
+
+    padded = pad_array()
+
     return dt_dct
     newdt = np.dtype(  )
     out = np.array()
@@ -125,19 +194,39 @@ def make_clean_data(filename, dct):
             filename - rootfile
     """
 
+    #DEBUG:
     FNAME = "/home/epeters/NeutronParser/sample4/merged_CCQEAntiNuTool_minervamc_nouniverse_nomec.root"
+    DCT = {"event": range(20)}
+
+    if filename is None:
+        filename = FNAME
+    if dct is None:
+        dct = DCT
 
     #Select specific branches
     brs = branches_to_get()
 
+    #Various filters to save our precious memory
+    mc_FSPart_max = 10
+    selection_str = "mc_nFSPart < %i" % mc_FSPart_max
+
+
     #FNAME = testfile.MC_filename
-    with rootpy.io.root_open(FNAME) as fh:
+    with rootpy.io.root_open(filename) as fh:
         for subtree in IO.get_next_tree(fh):
 
             #Do the initial np conversion
             log.info("Converting tree %s to numpy array..." % subtree.GetName())
+            #tree_arr = rnp.tree2array(subtree, branches=brs, selection=selection_str)
             tree_arr = rnp.tree2array(subtree, branches=brs)
             log.info("...conversion finished")
+
+            #Select for good events from input dct
+            good_evts = set(dct.get("event"))
+            @np.vectorize
+            def selected(elmt): return elmt in good_evts
+            tree_arr = tree_arr[ selected(tree_arr["event"])]
+
 
             #Flatten the array out
             #tree_arr = flatten_array(tree_arr)
@@ -145,6 +234,11 @@ def make_clean_data(filename, dct):
             if len(tree_arr) == 0:
                 continue
             return tree_arr
+
+
+
+
+
             rows = len(tree_arr)
             cols = len(tree_arr[0])
             print rows, cols
@@ -193,6 +287,7 @@ def BlobClassifier(tupl, hist=True, filt=True, dump=True, ML=False):
       hist:
       ML:
     """
+
     return
 
 
