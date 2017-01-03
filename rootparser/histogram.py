@@ -1,6 +1,6 @@
 """histogram.py - main methods for interfacing data with ROOT histograms"""
 
-from rootpy.plotting import Hist, Hist2D
+from rootpy.plotting import Hist, Hist2D, HistStack
 from collections import OrderedDict
 
 #accessing TCanvas
@@ -10,12 +10,16 @@ import rootpy.ROOT as ROOT
 from rootparser_exceptions import log
 
 #IO
+from IO import versioncontrol
 import IO   #get, put, histogram interfacing
+
+
 import rootpy
 import os   #getpid
 
 #Some plotting
 import MINERvAmath as Mm
+import numpy as np
 
 #Where we'll put the output histograms
 class HistogramManager:
@@ -33,39 +37,39 @@ class HistogramManager:
 n_pairs = []        #global tupl pairs of neutrons to compare - init
 n_singles = ["recon_kine_n_P", "mc_kine_n_P", "mc_n_P", "n_blob"]
 all_export_lst = [
-                ("null", (100,-1,1), "-" ),
-                ("n_trans_angle", (100,0,360), "deg" ),
-                ("p_trans_angle", (100, 0, 360), "deg" ),
-                ("nu_px", (100,-300, 300), "MeV/c" ),
-                ("nu_py", (100, -300, 300), "MeV/c"),
-                ("mu_x_err", (100,0,1), "-"),
-                ("mu_y_err", (100,0,1), "-" ),
-                ("mu_z_err", (100, 0, 1), "-"),
-                ("N_blobs-N_neutrons", (20, -10, 10), "Number of Neutrons", "counts"),
-                ("theta_nvb", (90, 0, 180), "deg", "counts/deg"),
-                ("cos(theta_nvb)", (90, 0, 1), "-", "counts" ),
-                ("theta_nvb_vs_En_datatype", (30, 0, 1200, 30, 0, 180), "E (MeV)", "Theta (deg)" ),
-                ("v_n(mc)_dot_v_mu", (100, 0, 360), "deg" ),
-                ("phiT", (100, 0, 360), "deg" ),
-                ("Dphi_T", (100, 0, 360), "deg" ),
-                ("mu_dangle", (100, 0, 20), "deg" ),
-                ("r_vb", (25, 0, 2000), "R_vb (mm)", "counts/mm" ),
-                ("En_0blob", (50, 0, 1200), "Energy (MeV)", "Neutrons/MeV" ),
-                ("En_1blob", (50, 0, 1200), "E (Mev)", "1/MeV" ),
-                ("En_01blob", (50, 0, 1200), "E (MeV)", "1/MeV" ),
-                ("E_n_vs_N_blob", (6, 0, 6, 30, 0, 1200), "N / blobs", "E (MeV)" ),
-                ("phi_T_vs_Emu", (30, 0, 1200, 30, 170, 180), "E (MeV)", "phi_T (deg)" ),
-                ("phiT_vs_En", (30, 0, 1200, 30, 170, 180), "E (MeV)", "phi_T (deg)" ),
-                ("Blob_find_efficiency", (50, 0, 1200), "-" ),
-                ("theta_nvb_vs_Eblob", (20, 0, 450, 45, 0, 180), "E (MeV)", "theta (deg)" ),
-                ("theta_nvb_vs_rvb", (30, 0, 600, 45, 0, 180), "R_vb (mm)","theta (deg)"  ),
-                ("theta_nvb_vs_DZ", (30, 0, 600, 90, 0, 180), "DZ (mm)", "theta (deg)" ),
-                ("Z1_Nblob_vs_MC", (50, 0, 600, 50, 0, 600), "E_blob (MeV)", "E_MC (MeV)"),
-                ("Z6_Nblob_vs_MC", (50, 0, 600, 50, 0, 600), "E_blob (MeV)", "E_MC (MeV)")
+                 ("null", (100,-1,1), "-" ),
+
+                # ("n_trans_angle", (100,0,360), "deg" ),
+                # ("p_trans_angle", (100, 0, 360), "deg" ),
+                # ("nu_px", (100,-300, 300), "MeV/c" ),
+                # ("nu_py", (100, -300, 300), "MeV/c"),
+                # ("mu_x_err", (100,0,1), "-"),
+                # ("mu_y_err", (100,0,1), "-" ),
+                # ("mu_z_err", (100, 0, 1), "-"),
+                # ("N_blobs-N_neutrons", (20, -10, 10), "Number of Neutrons", "counts"),
+                # ("theta_nvb", (90, 0, 180), "deg", "counts/deg"),
+                # ("cos(theta_nvb)", (90, 0, 1), "-", "counts" ),
+                # ("theta_nvb_vs_En_datatype", (30, 0, 1200, 30, 0, 180), "E (MeV)", "Theta (deg)" ),
+                # ("v_n(mc)_dot_v_mu", (100, 0, 360), "deg" ),
+                # ("phiT", (100, 0, 360), "deg" ),
+                # ("Dphi_T", (100, 0, 360), "deg" ),
+                # ("mu_dangle", (100, 0, 20), "deg" ),
+                # ("r_vb", (25, 0, 2000), "R_vb (mm)", "counts/mm" ),
+                # ("En_0blob", (50, 0, 1200), "Energy (MeV)", "Neutrons/MeV" ),
+                # ("En_1blob", (50, 0, 1200), "E (Mev)", "1/MeV" ),
+                # ("En_01blob", (50, 0, 1200), "E (MeV)", "1/MeV" ),
+                # ("E_n_vs_N_blob", (6, 0, 6, 30, 0, 1200), "N / blobs", "E (MeV)" ),
+                # ("phi_T_vs_Emu", (30, 0, 1200, 30, 170, 180), "E (MeV)", "phi_T (deg)" ),
+                # ("phiT_vs_En", (30, 0, 1200, 30, 170, 180), "E (MeV)", "phi_T (deg)" ),
+                # ("Blob_find_efficiency", (50, 0, 1200), "-" ),
+                # ("theta_nvb_vs_Eblob", (20, 0, 450, 45, 0, 180), "E (MeV)", "theta (deg)" ),
+                # ("theta_nvb_vs_rvb", (30, 0, 600, 45, 0, 180), "R_vb (mm)","theta (deg)"  ),
+                # ("theta_nvb_vs_DZ", (30, 0, 600, 90, 0, 180), "DZ (mm)", "theta (deg)" ),
+                # ("Z1_Nblob_vs_MC", (50, 0, 600, 50, 0, 600), "E_blob (MeV)", "E_MC (MeV)"),
+                # ("Z6_Nblob_vs_MC", (50, 0, 600, 50, 0, 600), "E_blob (MeV)", "E_MC (MeV)")
                 ]
 
-#rootpy isn't very helpful in providing class type for hists
-hist_type = type(Hist(1,0,1))
+#
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #Neutron comparison names for backwards compatibility
@@ -80,54 +84,10 @@ def make_n_comp_energy_name(tupl):
 def make_n_comp_rel_e_name(tupl):
     return "RELATIVE_ENERGY_%s_over_%s" % (tupl[1], tupl[0])
 
-def init_permus(target):
-    #Add histogram tuples to the given list:
-    #   -all individual simulated neutrons energy and momentum
-    #   -permutations of comparison between kine neutrons, blobs, and mc neutrs
+#Muon plotnames for backwards compatibility
+def make_theta_names(mu_name):
+    return "%s_thetaX" % mu_name, "%s_thetaY" % mu_name
 
-    #orderedDict makes permuting easier, but requires ordered construction
-    n_dct = OrderedDict({"recon_kine_n_P": None})
-    for n_name in ["mc_kine_n_P", "mc_n_P", "n_blob"]:
-        n_dct[n_name] = None
-
-    #Individual energies, angles TH1's for simulated n's
-    for n_name in n_dct:
-        histname1 = make_n_energy_name(n_name)
-        target.append( (histname1, (100, 0, 1500), "MeV") )
-        histname2 = make_n_pz_name(n_name)
-    	target.append( (histname2, (100, 0, 1500), "MeV/c") )
-
-    #Setting up all ordered combinations for comparing neutrons
-    global n_pairs
-    for i, (k, v) in enumerate(n_dct.iteritems()):
-    	current_k = k
-    	#grab every other neutron type, without repeats
-    	for j, (k2, v2) in enumerate(n_dct.iteritems()):
-    		if j<=i:
-    			continue
-    		n_pairs.append( (current_k, k2) )
-
-    #Comparisons between types of neutrons
-    pair_lst = make_pair_lst(n_pairs)
-    target += pair_lst
-
-    return target
-
-def make_pair_lst(n_pairs):
-    #passed a list of pairs of neutron types, set up tuples to init histograms
-    out = []
-    for tupl in n_pairs:
-        #angle between the neutrons
-    	name_theta = make_n_comp_theta_name(tupl)
-        out.append( (name_theta, (90, 0, 180), "deg") )
-        #Energy comparisons
-        name_energy = make_n_comp_energy_name(tupl)
-    	out.append( (name_energy, (50, 0, 1200, 50, 0, 1200), "%s (MeV)" % tupl[0], "%s (MeV)" % tupl[1]) )
-        #Energy 1 vs Energy 2
-    	name_rel = make_n_comp_rel_e_name(tupl)
-    	out.append( (name_rel, (30, 0, 2), "MeV/MeV") )
-
-    return out
 
 def init_hist_dct(export_lst):
     #initialize a dictionary of histograms like {name: handle}
@@ -197,6 +157,123 @@ def fill_hist(histname, *vals):
     else:
         return hist_dct.get(histname)
 
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#EXTENDING THE LIST OF HISTOGRAMS BEYOND WHAT IS HARD-CODED
+def extend_export_lst(target):
+    #There are some special comparisons between neutrons that are not hard-coded
+    # simulated neutron features
+    target = init_permus(target)
+    #angles of various particles
+    target = init_thetas(target)
+    return target
+
+def init_permus(target):
+    #Add histogram tuples to the given list:
+    #   -all individual simulated neutrons energy and momentum
+    #   -permutations of comparison between kine neutrons, blobs, and mc neutrs
+
+    #orderedDict makes permuting easier, but requires ordered construction
+    n_dct = OrderedDict({"recon_kine_n_P": None})
+    for n_name in ["mc_kine_n_P", "mc_n_P", "n_blob"]:
+        n_dct[n_name] = None
+
+    #Individual energies, angles TH1's for simulated n's
+    for n_name in n_dct:
+        histname1 = make_n_energy_name(n_name)
+        target.append( (histname1, (100, 0, 1500), "MeV") )
+        histname2 = make_n_pz_name(n_name)
+    	target.append( (histname2, (100, 0, 1500), "MeV/c") )
+
+    #Setting up all ordered combinations for comparing neutrons
+    global n_pairs
+    for i, (k, v) in enumerate(n_dct.iteritems()):
+    	current_k = k
+    	#grab every other neutron type, without repeats
+    	for j, (k2, v2) in enumerate(n_dct.iteritems()):
+    		if j<=i:
+    			continue
+    		n_pairs.append( (current_k, k2) )
+
+    #Comparisons between types of neutrons
+    pair_lst = make_pair_lst(n_pairs)
+    target += pair_lst
+
+    return target
+
+def make_pair_lst(n_pairs):
+    #passed a list of pairs of neutron types, set up tuples to init histograms
+    out = []
+    for tupl in n_pairs:
+        #angle between the neutrons
+    	name_theta = make_n_comp_theta_name(tupl)
+        out.append( (name_theta, (90, 0, 180), "deg") )
+        #Energy comparisons
+        name_energy = make_n_comp_energy_name(tupl)
+    	out.append( (name_energy, (50, 0, 1200, 50, 0, 1200), "%s (MeV)" % tupl[0], "%s (MeV)" % tupl[1]) )
+        #Energy 1 vs Energy 2
+    	name_rel = make_n_comp_rel_e_name(tupl)
+    	out.append( (name_rel, (30, 0, 2), "MeV/MeV") )
+
+    return out
+
+def init_thetas(target):
+    for particle_name in [
+                        "recon_kine_n_P", "mc_kine_n_P",
+                        "mc_n_P", "n_blob",
+                        "mc_mu", "data_mu"]:
+        thetaX_name, thetaY_name = make_theta_names(particle_name)
+        target.append((thetaX_name,  (100, -20, 20), "deg"))
+        target.append((thetaY_name,  (100, -20, 20), "deg"))
+    return target
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#Plotting for the analysis
+
+def make_comp_hists(lookup_dct):
+    #Passed a dictionary of current neutron 4-vecs, plot comparisons
+    global n_pairs
+    for n_pair in n_pairs:
+        n0 = lookup_dct.get(n_pair[0])
+        n1 = lookup_dct.get(n_pair[1])
+        if n1 is not None and n0 is not None:
+            #ENERGIES
+            E_compare = make_n_comp_energy_name(n_pair)
+            #log.info("filling %s with %d, %d" % (E_compare, n0[0], n1[0]))
+            fill_hist(E_compare, n0[0], n1[0])
+            #DTHETA
+            phi_compare = make_n_comp_theta_name(n_pair)
+            dangle, D = Mm.compare_vecs(n0[1:], n1[1:])
+            fill_hist(phi_compare, dangle)
+    return
+
+def make_neutron_hists(lookup_dct):
+    #Passed a dictionary of current neutrons, plot individual properties
+    global n_singles
+    for n_name in n_singles:
+        if lookup_dct.get(n_name) is None:
+            continue
+        #ENERGY
+        E_name = make_n_energy_name(n_name)
+        fill_hist(E_name, lookup_dct.get(n_name)[0])
+        #PZ
+        PZ_name = make_n_pz_name(n_name)
+        fill_hist(PZ_name, lookup_dct.get(n_name)[3])
+    return
+
+
+def make_vec_angle_hists(name, P):
+    #Plot distributions of muon angle about the z-axis
+    histname_X, histname_Y = make_theta_names(name)
+    fill_hist(histname_X, np.arctan(P[1]/P[3]) )
+    fill_hist(histname_Y, np.arctan(P[2]/P[3]) )
+    return
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#WRITING, POST=PROCESSING
+
+
 def write_hists(path):
     #Precondition: Call from within the context of init_histograms
     #write a subprocess' histograms to a .root file at path
@@ -208,15 +285,41 @@ def write_hists(path):
             hist.Write()
     return 0
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-def extend_export_lst(target):
-    #There are some special comparisons between neutrons that are not hard-coded
-    # simulated neutron features
-    target = init_permus(target)
+def post_process_hists(path):
+    #Precondition: Call from within the context of init_histograms
+    #Do a variety of tasks to make hists more viewable, etc.
+    log.info("PID %i processing histograms in %s" % (os.getpid(), path))
 
-    return target
+    with rootpy.io.root_open(path, "UPDATE") as fh:
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        #overlays
+        histlsts = [[], []]
+        for mu_name in ["mc_mu", "data_mu"]:
+            for i, dim in enumerate(["x", "y"]):
+                histname = make_theta_names(mu_name)[i]
+                histlsts[i].append(IO.get_subhist().get(histname))
+
+        for histlst in histlsts:
+            stack = overlay(histlst)
+            stack.Draw("PFC")
+            rootpy.interactive.wait()
+            stack.Write()
+
+def overlay(histlst):
+    #given a number of histograms,
+    #Return: A HistStack() object with the edited histograms overlaid
+    #For style ref, see https://root.cern.ch/doc/master/classTColor.html#C05
+    colors = (ROOT.kRed, ROOT.kBlue, ROOT.kCyan, ROOT.kGreen, ROOT.kViolet)
+    ROOT.gStyle.SetPalette(107)
+    #styles = ("\\", "/", "-")
+    stack = HistStack()
+    for i, arg in enumerate(histlst):
+        #arg.SetFillStyle(styles[i])
+        #arg.SetFillColor(colors[i])
+        #arg.Write("", ROOT.TObject.kOverwrite)
+        stack.Add(arg)
+    return stack
+
 def save_as_png(hist, target):
     #take a hist (canvas obj) and save it to a target dir
 
@@ -279,39 +382,8 @@ def save_as_png(hist, target):
 # # # # # # # # # # # # # # # # # #
 
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#Plotting for the analysis
 
-def make_comp_hists(lookup_dct):
-    #Passed a dictionary of current neutron 4-vecs, plot comparisons
-    global n_pairs
-    for n_pair in n_pairs:
-        n0 = lookup_dct.get(n_pair[0])
-        n1 = lookup_dct.get(n_pair[1])
-        if n1 is not None and n0 is not None:
-            #ENERGIES
-            E_compare = make_n_comp_energy_name(n_pair)
-            #log.info("filling %s with %d, %d" % (E_compare, n0[0], n1[0]))
-            fill_hist(E_compare, n0[0], n1[0])
-            #DTHETA
-            phi_compare = make_n_comp_theta_name(n_pair)
-            dangle, D = Mm.compare_vecs(n0, n1)
-            fill_hist(phi_compare, dangle)
-    return
-
-def make_neutron_hists(lookup_dct):
-    #Passed a dictionary of current neutrons, plot individual properties
-    global n_singles
-    for n_name in n_singles:
-        if lookup_dct.get(n_name) is None:
-            continue
-        #ENERGY
-        E_name = make_n_energy_name(n_name)
-        fill_hist(E_name, lookup_dct.get(n_name)[0])
-        #PZ
-        PZ_name = make_n_pz_name(n_name)
-        fill_hist(PZ_name, lookup_dct.get(n_name)[3])
-    return
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
 

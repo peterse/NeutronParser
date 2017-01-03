@@ -13,12 +13,13 @@ BE_p = 200				#Avg binding energy of proton (MeV)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ROTATIONS, CONVERSIONS
 
+
 def rot2D_matrix(theta):
-#Initialize a rotation matrix for a given theta, in radians
+#Initialize a rotation matrix for a given theta, IN RADIANS
 	return ( (math.cos(theta), -math.sin(theta)), (math.sin(theta), math.cos(theta)) )
 
 #Rotating in a linear world.
-THETA = 0
+THETA = -0.05887
 rot_matrix = rot2D_matrix(THETA)
 
 def yz_rotation(p_vec, datatype=0):
@@ -44,6 +45,12 @@ def yz_rotation(p_vec, datatype=0):
 		return (p_vec[0], p_vec[1], cor_zy[1], cor_zy[0])
 	elif dims == 3:
 		return (p_vec[0], cor_zy[1], cor_zy[0])
+
+# const double numi_beam_angle_rad = -0.05887;
+#
+# double fspy_prime = -1.0*sin(numi_beam_angle_rad)*fspz[i] + cos(MinervaUnits::numi_beam_angle_rad)*fspy[i];
+#
+# double fspz_prime = cos(numi_beam_angle_rad)*fspz[i] + sin(MinervaUnits::numi_beam_angle_rad)*fspy[i];
 
 def convert_E2T(arr, m):
 	"""
@@ -112,6 +119,8 @@ def compare_vecs(a, b, mode=0):
 #	mode=0: return angle, separation
 #	mode=1: return cos(angle), separation
 #Pass this v_n*time and vec(vtx->blob) in (m)
+	if len(a) != 3 or len(b) != 3:
+		raise ValueError("compare_vecs requires 3-vectors for comparison")
 	norm_a = norm(a)
 	norm_b = norm(b)
 	a = np.array(a)

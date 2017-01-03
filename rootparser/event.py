@@ -483,7 +483,6 @@ def get_4vec_base(p_i, e_i, xyz_prefix, energy):
 
     #Put energy at index 0
     out[0] = IO.get_subtree().GetLeaf(energy).GetValue(p_i)
-
     return np.array(out)
 
 @versioncontrol

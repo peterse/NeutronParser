@@ -96,6 +96,11 @@ def flatten_array(arr):
 
     new_arrs = []
     base = "uncomparable_string"
+
+    #We will keep track of (new) column names to conver to
+    #a structured array after concatating all of the padded arrs
+    fieldnames = []
+    formats = []
     for i, name in enumerate(arr.dtype.names):
 
         dt = arr.dtype.fields[name][0]
@@ -106,84 +111,88 @@ def flatten_array(arr):
             dims = np.shape(padded)
 
             #2: generate new formats and fieldnames
-            fieldnames = [name+str(j) for j in range(dims[1])]
-            formats = [type(val) for val in padded[0]]
-            dt_dct = dict(names=fieldnames, formats=formats)
+            i_fieldnames = [name+str(j) for j in range(dims[1])]
+            i_formats = [type(val) for val in padded[0]]
+            #dt_dct = dict(names=fieldnames, formats=formats)
 
             #3: produce a new structured array based on this data
             #Bit of a hack to get this to behave...
-            new = np.core.records.fromarrays(padded.transpose(), dtype=dt_dct)
+            #new = np.core.records.fromarrays(padded.transpose(), dtype=dt_dct)
+
+            new = padded
             #I'm taking it on good faith that padding succeeded
             #new = new.reshape(len(new), len(new[0]))
         else:
             #Otherwise, keep scalar columns (but make them columns!)
-            dt_dct = dict(names=[name], formats=[type(arr[name][0])] )
-            print dt_dct
-            new = np.array(arr[name], dtype=dt_dct)
+
+            i_fieldnames = [name]
+            i_formats = [type(arr[name][0])]
+            new = arr[name]
+            # new = np.array(arr[name], dtype=dt_dct)
             new = new.reshape(len(new), 1)
 
-        print i
+
         #4 stack these columns onto the rest of our flattened arrs
+        fieldnames += i_fieldnames
+        formats += i_formats
         if base == "uncomparable_string":
             base = new
         else:
-            print np.shape(base)
-            print np.shape(new)
-            return base, new
-
             base = np.hstack( (base,new) )
-        if i == 1:
-            return base
+        if i == 2:
+            break
 
-    #4: concatenate this structured array to the rest
+    #4: label the columns in the new, padded, 2D array
+    dt_dct = dict(names=fieldnames, formats=formats )
+    out = np.core.records.fromarrays(base.transpose(), dtype=dt_dct)
+    return out
 
-
-    return
-    for i, col in enumerate(arr[0]):
-
-        #Make a new ndarray with names as col[i] for i-many entries
-
-        #get current field info, datatype, etc.
-        fieldname = arr.dtype.names[i]
-        try:
-            dims = len(col)
-        except TypeError:
-            dt = type(col)
-            dims = 1
-        else:
-            dt = type(col[0])
-
-        #The flattened array will do the following
-        #mc_FSPartPz -> mc_FSPartPz0 ... mc_FSPartPz<N_MAX-1>
-        #mc_vtx -> mc_vtx0,... mcvtx3
-        #etc...
-
-        #nested particle values
-        if IO.is_prefix_br(fieldname):
-            names = IO.expand_prefix(fieldname)
-            for br_name in names:
-                for i in range(N_MAX):
-                    fieldnames.append(br_name+str(i))
-                    formats.append(dt)
-        #length-3,4 vectors
-        elif dims > 1:
-            for i in range(dims):
-                fieldnames.append(fieldname+str(i))
-                formats.append(dt)
-        #scalars
-        else:
-            fieldnames.append(fieldname)
-            formats.append(dt)
-
-
-    print dt_dct
-    return dt_dct
-
-    padded = pad_array()
-
-    return dt_dct
-    newdt = np.dtype(  )
-    out = np.array()
+    # return
+    # for i, col in enumerate(arr[0]):
+    #
+    #     #Make a new ndarray with names as col[i] for i-many entries
+    #
+    #     #get current field info, datatype, etc.
+    #     fieldname = arr.dtype.names[i]
+    #     try:
+    #         dims = len(col)
+    #     except TypeError:
+    #         dt = type(col)
+    #         dims = 1
+    #     else:
+    #         dt = type(col[0])
+    #
+    #     #The flattened array will do the following
+    #     #mc_FSPartPz -> mc_FSPartPz0 ... mc_FSPartPz<N_MAX-1>
+    #     #mc_vtx -> mc_vtx0,... mcvtx3
+    #     #etc...
+    #
+    #     #nested particle values
+    #     if IO.is_prefix_br(fieldname):
+    #         names = IO.expand_prefix(fieldname)
+    #         for br_name in names:
+    #             for i in range(N_MAX):
+    #                 fieldnames.append(br_name+str(i))
+    #                 formats.append(dt)
+    #     #length-3,4 vectors
+    #     elif dims > 1:
+    #         for i in range(dims):
+    #             fieldnames.append(fieldname+str(i))
+    #             formats.append(dt)
+    #     #scalars
+    #     else:
+    #         fieldnames.append(fieldname)
+    #         formats.append(dt)
+    #
+    #
+    # print dt_dct
+    # return dt_dct
+    #
+    # padded = pad_array()
+    #
+    # return dt_dct
+    # newdt = np.dtype(  )
+    # out = np.array()
 
 def make_clean_data(filename, dct):
     """

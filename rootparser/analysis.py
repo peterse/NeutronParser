@@ -195,6 +195,12 @@ def testEventAccess(filename, path, report=True):
                         except ReferenceError:
                             missing_br.append(br_name + suffix)
                 #TODO: do we want to check vector-filled leafs?
+                elif k == "RECON_MU_P_PREFIX":
+                    for suffix in ["px_mu", "py_mu", "pz_mu", "E_mu"]:
+                        try:
+                            subtree.GetLeaf(br_name + suffix).GetValue()
+                        except ReferenceError:
+                            missing_br.append(br_name + suffix)
                 else:
                     try:
                         subtree.GetLeaf(br_name).GetValue()
@@ -213,6 +219,10 @@ def testEventAccess(filename, path, report=True):
 
     # return a list of missingbranches
     return missing_br
+
+
+
+
 
 
 def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
@@ -276,31 +286,34 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                 IO.get_subtree().GetEvent(e_i)
 
                 #DEBUG:
-                if e_i > 10000:
+                if e_i > 1000:
                     break
                 if e_i % 10000 == 0:
                     log.info("Processing event %i" % e_i)
 
                 #PARTICLES
                 particle_lst = get_particle_lst(e_i, datatype)
+                # for p in particle_lst:
+                #     print p.name, p.P
 
                 #MUON
                 mu = fetch_mu(particle_lst)
                 if mu is None:
                     continue    #FIXME: we need statistics - apply filter!
-                P_mu = mu.P
-
-                #BLOBS
-                #FIXME
-                blobs = make_blob_neutrons(e_i, datatype=2)
-                blob = pick_blob(blobs)
+                mc_mu_P = mu.P
+                recon_mu_P = get_mu_data(e_i)
 
                 #MC NEUTRON
                 mc_neutrons = fetch_neutrons_mc(particle_lst)
                 n_neutrons = len(mc_neutrons)
                 if n_neutrons == 1:
                     mc_n_P = mc_neutrons[0].P
-                #Case for n_neutrons != 1:
+                    #FIXME:
+                    #Case for neutron at rest...
+                    if mc_n_P[0] < Mm.m_n + 5:
+                        continue
+
+                #Case for n_neutrons != 1, or no free neutron:
                 else:
                     continue        #FIXME: apply filter!
 
@@ -316,59 +329,96 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                 """
 
                 #KINE-NEUTRON
-                mc_kine_n_P = make_kine_neutron(P_mu)
+                mc_kine_n_P = make_kine_neutron(mc_mu_P)
                 if mc_kine_n_P is None:
                     continue
-
+                #recon_kine_n_P = make_kine_neutron(mc_mu_P)
                 #VERTEX
                 mc_vtx = get_vtx(e_i, datatype=0)
                 recon_vtx = get_vtx(e_i, datatype=2)
                 if True:
                     #FIXME: condition for acceptable vertex discrepancy...
                     #FIXME: Not working right now- weirdness w TLorentzVector?
+                    #FIXME: recon vtx wasn't showing up
                     vtx = mc_vtx
+
+                if not vtx:
+                    continue
+
+                #BLOBS
+                #FIXME: before or after neutron rotation?
+                blobs = make_blob_neutrons(e_i, datatype=2)
+                n_blobs = len(blobs)
+                if n_blobs == 0:
+                    #NO BLOB
+                    continue
+                blob = pick_blob(blobs, vtx, mc_n_P, option="dangle")
+
 
                 # CONVERSIONS, ROTATIONS
                 mc_kine_n_P = Mm.convert_E2T(mc_kine_n_P, Mm.m_n)
                 mc_n_P = Mm.convert_E2T(mc_n_P, Mm.m_n)
+                RVB = make_rvb(blob, vtx)
+
+                #rotations on mc parts
+                mc_kine_n_P = Mm.yz_rotation(mc_kine_n_P, datatype=0)
+                mc_n_P = Mm.yz_rotation(mc_n_P, datatype=0)
+
                 #FIXME: Do we rotate the kine or make it using rotated mc?
-                #mc_kine_n_P = Mm.yz_rotation(mc_kine_n_P, datatype=0)
-                #mc_n_P = Mm.yz_rotation(mc_n_P, datatype=0)
+
+
 
                 #EVENT SUMMARY
                 evt = EventSummary(e_i, datatype)
                 evt.n_parts = 0
                 evt.n_neutrons = n_neutrons
-                evt.n_blobs = len(blobs)
+                evt.n_blobs = n_blobs
                 evt.n_protons = count_protons(particle_lst)
                 #mc-specific metadata
                 if datatype == 0:
                     evt.int_type = get_mc_int_type(e_i)
                 #neutrons in this event
-                evt.lookup_dct = {
+                #TODO: PROTECT THESE KEYNAMES!!!
+                evt.n_dct = {
                                     "recon_kine_n_P": None,
                                     "mc_kine_n_P": mc_kine_n_P,
                                     "mc_n_P": mc_n_P,
-                                    "n_blob": blob
+                                    "n_blob": RVB
                              }
-                #print evt
-
+                evt.mu_dct = {"mc_mu": mc_mu_P, "data_mu": recon_mu_P}
                 #FILTERS
 
                 #filters: 'continue' means we're done with this event
                 if not fi.AntiQE_like_event(evt):
                     #log.info("Event %i not CCQE-like" % e_i )
                     continue
+                #print DEBUG
+
+                # log.info("Event %i particles:\n" % e_i)
+                # print "VTX", vtx
+                # print "BLOB", blob[1:]
+                # print "RVB: ", RVB[1:]
+                # print "DTHETA", Mm.compare_vecs(blob[1:], RVB[1:])
+                # print "MUON: ", mc_mu_P[1:]
+                # print "MC NEUTRON: ", mc_n_P[1:], "\n\n"
 
                 #HISTOGRAMMING
                 if hist:
-                    hi.make_comp_hists(evt.lookup_dct)      #N-COMPARISONS
-                    hi.make_neutron_hists(evt.lookup_dct)   #INDIVIDUAL NEUTRONS
 
+                    hi.make_comp_hists(evt.n_dct)      #N-COMPARISONS
+                    hi.make_neutron_hists(evt.n_dct)   #INDIVIDUAL NEUTRONS
+
+                    #DATA QUALITY
+                    for mu, mu_P in evt.mu_dct.iteritems():
+                        hi.make_vec_angle_hists(mu, mu_P)
+                    for n, n_P in evt.n_dct.iteritems():
+                        if n_P is None:
+                            continue
+                        hi.make_vec_angle_hists(n, n_P)
                 #Checking relative angles
 
                 #MC kine-neutron vs. SINGLE mc neutron
-                dangle, separation = Mm.compare_vecs(mc_n_P, mc_kine_n_P)
+                dangle, separation = Mm.compare_vecs(mc_n_P[1:], mc_kine_n_P[1:])
                 dE = 0.
                 blob_good = False
                 #ML training set
@@ -395,19 +445,35 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
             #only iterate first tree?
             break
 
-
-
         if hist:
             #Write out histograms
             hi.write_hists(hist_target)
-
+            hi.post_process_hists(hist_target)
         if ML:
             #package dct contents into np.arrays
             for k, v in ML_out:
                 ML_out[k] = np.array(v)
             return ML_out
+        #FIXME: Different return objects is bad...
         else:
-            return
+            return {}
+
+
+def make_rvb(blob, vtx):
+    #Passed a blob and the vtx position, make the vtx->blob vector
+    #First entry will be blob energy
+
+    #blob has format [E,x, y, z]
+    #vtx has format [x, y, z, t]
+    rvb = [0,0,0,0]
+    for i in range(len(rvb)):
+        if i == 0:
+            continue
+        rvb[i] = blob[i] - vtx[i-1]
+
+    return np.array(rvb)
+
+
 
 @versioncontrol
 def get_mc_int_type(e_i, typ="MC_TYPE"):
@@ -418,11 +484,50 @@ def make_kine_neutron(P_mu):
     #passed an event, generate an MC and recon neutron, if possible
     return Mm.make_neutron_P(P_mu)
 
-def pick_blob(blobs_lst):
-    #TODO: What if there's a lot of blobs?
-    #criteria for choosing the best blob
-    blob = blobs_lst[0]
-    return blob
+def pick_blob(blobs_lst, vtx, neutron, option="dangle"):
+    """
+    Passed a list of blobs detected, choose the best based
+    on criteria specified by 'option'
+    Args:
+        -blobs_lst: A list of blob 4-vectors [E,X,Y,Z]
+        -vtx: vtx position (x,y,z,t)
+        -neutron: comparison neutron (E, px, py, pz)
+    kwargs:
+        -option:
+            'dangle' - calculate the RVB for each blob, then
+            pick the blob that has the smallest dangle vs neutron.
+            'distance' - ...that has the smallest separation
+    """
+
+    if option in ["dangle", "distance"]:
+        if option == "dangle":
+            best = 180
+            spot = 0
+        elif option == "distance":
+            best = 9999
+            spot = 1
+            #out, temp = None
+
+        for i, blob in enumerate(blobs_lst):
+            #FIXME: Is there a simpler, single-step solution
+            rvb = make_rvb(blob, vtx)
+            temp = Mm.compare_vecs(rvb[1:], neutron[1:])[spot]
+            #keep this blob, its rvb, new best angle
+            if temp < best:
+                best = temp
+                out = blob
+        try:
+            return out
+        except UnboundLocalError:
+            print "Broken pick_blob"
+            print blobs_lst
+            print neutron
+            print temp
+            raise ValueError
+
+    else:
+        raise NotImplementedError("Option %s doesn't exist" % option)
+
 
 def make_blob_neutrons(e_i, datatype):
 
@@ -474,6 +579,18 @@ def get_blob_neutron_data(e_i, blob_prefix="DATA_BLOB_PREFIX"):
             vecs_out[i][dim] = val
 
     return [np.array(lst) for lst in vecs_out]
+
+def get_mu(e_i, datatype):
+    #TODO
+    return
+
+@versioncontrol
+def get_mu_data(e_i, mu_branch="RECON_MU_P_PREFIX"):
+
+    out = [0,0,0,0]
+    for i, suffix in enumerate(["E_mu", "px_mu", "py_mu", "pz_mu"]):
+        out[i] = event.fetch_val_base(e_i, mu_branch+suffix)
+    return np.array(out)
 
 def get_vtx(e_i, datatype=0):
     if datatype == 0:

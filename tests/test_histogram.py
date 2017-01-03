@@ -27,6 +27,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 Parallel = ThreadManager(n_processes=parallel.N_THREADS)     #Threading
 
 def TestFillHists(tupl):
+
     #WARNING: this doesn't test 2D hist fill functionality
     #it's a pain to simulate calling this from _within_ a parallel func
     #versus calling it _as_ the parallelized function
@@ -79,10 +80,38 @@ class HistogramTest(unittest.TestCase):
         self.assertTrue(all(good_put))
 
     def test_draw_png(self):
-
+        #SKIP
+        return
         h = make_hist(("dummy_hist.root", "null", 0))
         histogram.save_as_png(h, "XCXCXC.png")
         #save_as_png()
+
+    def test_basicPlot(self):
+
+        fname = "merged_CCQEAntiNuTool_minervamc_nouniverse_nomec.root"
+        PATH = "~/NeutronParser/sample4/"
+        target = "basicPlot_test.root"
+        #FIXME: Permanent testfile?
+        dest = os.getcwd()
+
+        histogram.basicPlot(fname, PATH, target, dest)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
 

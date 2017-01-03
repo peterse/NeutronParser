@@ -31,7 +31,7 @@ import rootpy   #root_open
 #Analysis framework
 import event
 from analysis import ParseEventsNP, testEventAccess, testDuplicateAccess
-
+import analysis
 #Debugging
 import MINERvAmath as Mm
 
@@ -46,11 +46,14 @@ PATH = sys.argv[2]
 target = sys.argv[3]
 dest = sys.argv[4]
 
-tmp_dest = sys.argv[5]
+tmp_dest_files = sys.argv[5]
+tmp_dest_hists = sys.argv[6]
+
 try:
-    N_THREADS = sys.argv[6]
+    N_THREADS = sys.argv[7]
 except IndexError:
-    N_THREADS = parallel.N_THREADS
+    N_THREADS = 1
+    #N_THREADS = parallel.N_THREADS
     log.info("Setting N_THREADS to %i" % N_THREADS)
 
 #Boot the thread manager with the current tree
@@ -59,8 +62,8 @@ Time = Timer(quiet=True)                            #Timing
 
 
 def main():
-    duplicate = testDuplicateAccess(filename, PATH)
-    missing = testEventAccess(filename, PATH)
+    duplicate = analysis.testDuplicateAccess(filename, PATH)
+    missing = analysis.testEventAccess(filename, PATH)
     if "event" in missing:
         IO.add_event_branch(filename, PATH)
         missing.remove("event")
@@ -70,11 +73,20 @@ def main():
     else:
         log.info("All branches present in tree %s", filename)
 
+    #Basic data quality/efficiency stuff
+    #basic_analysis = analysis.basicPlot(filename, PATH, target, dest)
+
     # #open the file and make a map of parsed events
     #
     # #divide the file into the temporary directory and put together
+
+    #TODO: file checker here: make sure the following exist:
+    #   tmp_dest_files
+    #   tmp_dest_hists
+
+
     #The filenames and targets from this routine are stored in the temp dest
-    filenames = IO.split_file(filename, N_THREADS, path=PATH, dest=tmp_dest, recreate=False)
+    filenames = IO.split_file(filename, N_THREADS, path=PATH, dest=tmp_dest_files, recreate=False)
 
     #Create ParseEvents args package using just filenames
     temp = []
@@ -82,28 +94,33 @@ def main():
         p, fname = IO.split_path(fullpath)
         temp.append(fname)
     filenames = temp
-    paths = [tmp_dest for i in range(len(filenames))]
+    paths = [tmp_dest_files for i in range(len(filenames))]
     targets = ["hist%i.root" % i for i in range(len(filenames))]
-    dests = [tmp_dest for i in range(len(filenames))]
+    dests = [tmp_dest_hists for i in range(len(filenames))]
     #the argument package for ParseEventsNP:
     #(file_to_analyze, path, target_histogram, target_directory)
     parallel_args = zip(filenames, paths, targets, dests)
 
     Time.start("Parse Events")
     #Parse the separate files in parallel
-    complete_lst = Parallel.run(ParseEventsNP, parallel_args, ParallelPool=Pool)
+    if N_THREADS > 1:
+        event_dct_lst = Parallel.run(analysis.ParseEventsNP, parallel_args, ParallelPool=Pool)
+    else:
+        event_dct_lst = map(analysis.ParseEventsNP, parallel_args)
     dt1 = Time.end()
 
-    #Output should be clean
-    if complete_lst != [0 for i in range(N_THREADS)]:
-        log.error("Failure mode returned non-zero in analysis.ParseEventsNP")
-        sys.exit()
-    else:
-        merge_targets = ["%s/%s" % (d, t) for d,t in zip(dests, targets)]
 
-    print merge_targets
+    return
+    # #Output should be clean
+    #Error handling as a future target...
+    # if complete_lst != [0 for i in range(N_THREADS)]:
+    #     log.error("Failure mode returned non-zero in analysis.ParseEventsNP")
+    #     sys.exit()
+    # else:
 
     #Join parallel-processed histogram files
+    merge_targets = ["%s/%s" % (d, t) for d,t in zip(dests, targets)]
+    print merge_targets
     all_hist_file = IO.join_all_histograms(merge_targets, target, dest)
 
 

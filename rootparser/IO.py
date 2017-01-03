@@ -12,7 +12,7 @@ from rootpy.tree import Tree, TreeModel, FloatArrayCol
 from rootpy import stl #std library?
 
 #histogramming interfac
-import histogram as hi
+#import histogram as hi
 #import ROOT
 import os
 import sys
@@ -36,6 +36,8 @@ subhists = {}
 #where combined histogram objects are written to
 OUTFILE = None
 
+#rootpy isn't very helpful in providing class type for hists
+hist_type = type(rootpy.plotting.Hist(1,0,1))
 
 ######################################################################
 #Histogram management
@@ -79,7 +81,7 @@ def join_all_histograms(file_lst, target, dest):
 
     #build upon the first rootfile's histograms
     base = "%s/%s" % f_p[0]
-    log.info("The following histograms will be summed into %s\n" % base \
+    log.info("The following histogram files will be summed into %s\n" % base \
             + "  \n".join(["%s/%s" % (d,f) for d,f in f_p[1:]]) )
 
     #get a list of the histograms we're going to iterate over:
@@ -89,7 +91,7 @@ def join_all_histograms(file_lst, target, dest):
             for p, d, obj_lst in s1.walk():
                 for name in obj_lst:
                     handle = s1.Get(name)
-                    if type(handle) is hi.hist_type:
+                    if type(handle) is hist_type:
                         all_hists.append(name)
 
         i=0
@@ -102,8 +104,9 @@ def join_all_histograms(file_lst, target, dest):
                     with rootpy.io.root_open(base, "UPDATE") as s1:
                         #add the histograms into a clone...
                         hist1 = s1.Get(histname)
-                        hist1.Add(hist1, hist2)
+                        hist1.Add(hist2)
                         hist1.Write("temp")
+                        #s1.Write()
                         #...and murder the original - THE PRESTIGE!
                         s1.Delete(histname+";1")
                         s1.Get("temp").SetName(histname)
@@ -288,7 +291,7 @@ def split_file(src, N, path=None, dest=None, recreate=True):
         for path, dirs, obj_lst in s.walk():
             for name in obj_lst:
                 handle = s.Get(name)
-                if type(handle) is hi.hist_type:
+                if type(handle) is hist_type:
                     all_hists.append(handle)
 
         #2: get a list of all the trees in this file
@@ -525,7 +528,7 @@ class RootFileManager:
         elif obj_type is rootpy.tree.tree.Tree:
             self.list_of_trees.append(obj_handle)
             return
-        elif obj_type is hi.hist_type:
+        elif obj_type is hist_type:
             return
         else:
             #"I don't recognize this and I don't know what to do"
@@ -577,6 +580,7 @@ lookup_dct = {
             "DATA_BLOB_PREFIX": "CCQEAntiNuTool_isoblob",
 
             "RECON_VTX": "CCQEAntiNuTool_vtx",
+            "RECON_MU_P_PREFIX": "CCQEAntiNuTool_",
             "EVENT_BR": "event"
             }
 

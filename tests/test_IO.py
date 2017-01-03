@@ -49,6 +49,7 @@ class IOTest(unittest.TestCase):
         self.assertTrue(any(dummyIO.list_of_trees))
 
     def test_add_event_branch(self):
+        return
         IO.add_event_branch(testfile.MC_filename, os.getcwd())
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     def test_testfile(self):
@@ -90,6 +91,7 @@ class IOTest(unittest.TestCase):
     #
     def test_filesplit(self):
         #Attempt to split a file's trees using the IO.
+
         tmp = "%s/tmp" % os.getcwd()
         N = 8
         file_lst = IO.split_file(testfile.MC_filename, 8, dest=tmp)
@@ -118,6 +120,7 @@ class IOTest(unittest.TestCase):
 
     def test_join_all_histograms(self):
 
+        #FIXME: destination is relative to call location...
         #pre = os.getcwd()
         #SPLIT_FILES = ["%s/tmp/%s" % (pre, fname) for fname in os.listdir("%s/tmp" % os.getcwd()) ]
         global SPLIT_FILES

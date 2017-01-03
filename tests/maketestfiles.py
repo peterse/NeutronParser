@@ -100,6 +100,7 @@ def generate_MC(lightweight=False):
     for br_name in tree.branchnames:
         if "mc_FSPart" in br_name:
             hist_dct[br_name] = Hist(100, 0., 10., name=br_name, title=br_name)
+    hist_dct["Px_Pz"] = Hist2D(50, 0., 10., 50, 0., 10., name="Px_Pz", title="Px_Pz")
     #Custom branching: Hand-make a treebuffer and feed its special types into tree
     # print "Testing:"
     # r =  re.compile(TreeBuffer.ARRAY_PATTERN)
@@ -132,7 +133,7 @@ def generate_MC(lightweight=False):
         hist_dct["mc_FSPartPy"].Fill(p[1])
         hist_dct["mc_FSPartPz"].Fill(p[2])
         hist_dct["mc_FSPartE"].Fill( p[3])
-
+        hist_dct["Px_Pz"].Fill(p[0], p[2])
 
         tree.mc_FSPartPDG = 2112        #neutron
         tree.mc_incoming = -13          #neutrino
@@ -159,6 +160,7 @@ def generate_MC(lightweight=False):
 
     for k, hist in hist_dct.iteritems():
         hist.Write()
+        print k, " written"
     tree.write()
 
     #second tree for testing tree parsing
