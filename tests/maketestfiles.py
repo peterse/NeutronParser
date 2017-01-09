@@ -29,6 +29,7 @@ treename2 = "test2"
 TMP = os.getcwd() + "/tmp"
 
 #histogram tmp
+HIST_filename = "HIST_dummy.root"
 TMP_HIST = os.getcwd() + "/tmp_hist"
 #TMP_FNAME = "tmp.root"
 #testfile-specific attributes
@@ -71,14 +72,14 @@ def recreate_testfile():
     #os.mkdir(TMP)
     return
 
+def generate_hists():
+    f = root_open(HIST_filename, "RECREATE")
+
 def generate_MC(lightweight=False):
     #Recreate the MC testfile
 
     print "Generating file %s" % MC_filename
     f = root_open(MC_filename, "RECREATE")
-
-
-
 
     tree = Tree(treename, model=TreeTemplate)
     #tree = Tree(treename)
@@ -100,6 +101,7 @@ def generate_MC(lightweight=False):
     for br_name in tree.branchnames:
         if "mc_FSPart" in br_name:
             hist_dct[br_name] = Hist(100, 0., 10., name=br_name, title=br_name)
+
     hist_dct["Px_Pz"] = Hist2D(50, 0., 10., 50, 0., 10., name="Px_Pz", title="Px_Pz")
     #Custom branching: Hand-make a treebuffer and feed its special types into tree
     # print "Testing:"

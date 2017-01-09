@@ -94,7 +94,7 @@ class HistogramTest(unittest.TestCase):
         #FIXME: Permanent testfile?
         dest = os.getcwd()
 
-        histogram.basicPlot(fname, PATH, target, dest)
+        # histogram.basicPlot(fname, PATH, target, dest)
 
 
 

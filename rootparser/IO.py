@@ -20,6 +20,7 @@ import subprocess #call, check_output
 import shutil
 import math
 
+import pickle #serializing python objects
 #Debugging
 sys.path.append("/home/epeters/NeutronParser/tests")
 #FIXME: Why can't I import exceptions??
@@ -37,7 +38,8 @@ subhists = {}
 OUTFILE = None
 
 #rootpy isn't very helpful in providing class type for hists
-hist_type = type(rootpy.plotting.Hist(1,0,1))
+hist_types =    [type(rootpy.plotting.Hist(1,0,1)),
+                type(rootpy.plotting.Hist2D(1, 0, 1, 1, 0, 1) )]
 
 ######################################################################
 #Histogram management
@@ -58,6 +60,17 @@ def put_subhist(hist_dct):
     global subhists
     pid = os.getpid()
     subhists[pid] = hist_dct
+
+def fetch_histlist(fname):
+    #Get a list of histograms in this file
+    out = []
+    with rootpy.io.root_open(fname) as s1:
+        for p, d, obj_lst in s1.walk():
+            for name in obj_lst:
+                handle = s1.Get(name)
+                if type(handle) in hist_types:
+                    out.append(name)
+    return out
 
 def join_all_histograms(file_lst, target, dest):
     """
@@ -87,12 +100,8 @@ def join_all_histograms(file_lst, target, dest):
     #get a list of the histograms we're going to iterate over:
     all_hists = []
     with cd(dest):
-        with rootpy.io.root_open(base) as s1:
-            for p, d, obj_lst in s1.walk():
-                for name in obj_lst:
-                    handle = s1.Get(name)
-                    if type(handle) is hist_type:
-                        all_hists.append(name)
+        all_hists = fetch_histlist(base)
+
 
         i=0
         for other_file in file_lst[1:]:
@@ -291,7 +300,7 @@ def split_file(src, N, path=None, dest=None, recreate=True):
         for path, dirs, obj_lst in s.walk():
             for name in obj_lst:
                 handle = s.Get(name)
-                if type(handle) is hist_type:
+                if type(handle) in hist_types:
                     all_hists.append(handle)
 
         #2: get a list of all the trees in this file
@@ -528,7 +537,7 @@ class RootFileManager:
         elif obj_type is rootpy.tree.tree.Tree:
             self.list_of_trees.append(obj_handle)
             return
-        elif obj_type is hist_type:
+        elif obj_type in hist_types:
             return
         else:
             #"I don't recognize this and I don't know what to do"
@@ -572,12 +581,16 @@ lookup_dct = {
             "MC_INCOMING_ENERGY": "mc_incomingE",
             "MC_VTX":  "mc_vtx",
             "MC_TYPE": "mc_intType",
+            "MC_Q2": "mc_Q2",
+            "MC_TARGET": "mc_targetZ",
 
             "DATA_PART_XYZ_PREFIX": None,
             "DATA_PART_E": None,
             "DATA_PART_ID": None,
             "DATA_INCOMING_PART": None,
             "DATA_BLOB_PREFIX": "CCQEAntiNuTool_isoblob",
+            "DATA_Q2": "CCQEAntiNuTool_Q2",
+
 
             "RECON_VTX": "CCQEAntiNuTool_vtx",
             "RECON_MU_P_PREFIX": "CCQEAntiNuTool_",
@@ -600,6 +613,8 @@ def expand_prefix(br_name):
         suffs = ["E", "X", "Y", "Z"]
     elif br_name == "mc_FSPartP":
         suffs = ["x", "y", "z"]
+    elif br_name == "CCQEAntiNuTool_":
+        suffs = ["E_mu", "px_mu", "py_mu", "pz_mu"]
     else:
         raise ValueError("Branch prefix %s not recognized" % br_name)
     return [br_name+suffix for suffix in suffs]
@@ -634,7 +649,33 @@ def versioncontrol(func):
 
     return substitute_and_call
 
+######################################################################
+#PYTHON EXTERNAL OBJECT MANAGEMENT
 
+def dump_obj(obj, filename, path):
+    #serialize a python object to a file
+    #A file takes a single object.
+    with cd(path):
+        with open(filename, "w+") as fh:
+            pickle.dump(obj, fh)
+    return filename
+
+def load_obj(filename):
+    #grab the sole pickled python object
+    with open(filename, "rb") as fh:
+        obj = pickle.load(fh)
+    return obj
+
+def picklename(filename):
+    #The python pickle file corresponding to a datafile
+    return filename.replace(".root", ".pickle")
+
+def clean_pickle(source, target):
+
+    with cd(source):
+        pickles = [f for f in os.listdir(os.getcwd()) if ".pickle" in f]
+        for fname in pickles:
+            shutil.move(fname, target)
 
 if __name__ == "__main__":
     pass

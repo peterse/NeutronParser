@@ -16,7 +16,7 @@ BE_p = 200				#Avg binding energy of proton (MeV)
 
 def rot2D_matrix(theta):
 #Initialize a rotation matrix for a given theta, IN RADIANS
-	return ( (math.cos(theta), -math.sin(theta)), (math.sin(theta), math.cos(theta)) )
+	return ( (math.cos(theta), math.sin(theta)), (-math.sin(theta), math.cos(theta)) )
 
 #Rotating in a linear world.
 THETA = -0.05887
@@ -106,20 +106,64 @@ def make_neutron_P(P_mu):
 	if E_n < 0:
 		#raise ValueError("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
 		#log.warning("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
-		print "MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n
+		raise ValueError("MakeKineNeutron: Negative Neutron Energy %d calculated. Adjust BE_p" % E_n)
 		return None
 #Get kinetic energies of neutrons
 	return np.array([E_n, -P_mu[1], -P_mu[2], p_nz])
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def normalize_0(diff):
+	#Send [-2pi,2pi] -> [0, 2pi]
+	if diff > np.pi:
+		diff = diff - 2*np.pi
+	elif diff < -np.pi:
+		diff = diff + 2*np.pi
+	return diff
+
+def normalize_1(diff):
+	#send [-pi,pi]->[0, 2pi]
+	if diff > 0:
+		return diff
+	elif diff < 0:
+		return diff + 2*np.pi
+	return diff
+
+def calculate_phi_T(a,b, normalize=0):
+	#calculate the angle between the xy-plane projections of a and b (3vecs)
+	#This is a CLOCKWISE ANGLE FROM A->B
+	if len(a) > 3 or len(b) > 3:
+		raise ValueError("compare_vecs requires 3-vectors for comparison")
+	phi_a = np.arctan2(a[1], a[0])
+	phi_b = np.arctan2(b[1], b[0])
+	#diff = max(phi_a, phi_b) - min(phi_a, phi_b)
+	if normalize==0:
+		diff = normalize_0(phi_a-phi_b)
+	elif normalize==1:
+		diff = normalize_1(phi_a-phi_b)
+
+	return np.degrees(diff)
+
+def calculate_theta_Tx(a,b):
+	#Calculate the angle between the XZ projections of a and b (3vecs)
+	theta_aX = np.arctan2(a[0], a[2])
+	theta_bX = np.arctan2(b[0], b[2])
+	diff = normalize_0(theta_aX - theta_bX)
+	return np.degrees(diff)
+
+def calculate_theta_Ty(a,b):
+	#Calculate the angle between the YZ projections of a and b (3vecs)
+	theta_aY = np.arctan2(a[1], a[2])
+	theta_bY = np.arctan2(b[1], b[2])
+	diff = normalize_0(theta_aY - theta_bY)
+	return np.degrees(diff)
 
 def compare_vecs(a, b, mode=0):
 #Given two spacial 3vecs (unnormalized), compares angle between them
 #	mode=0: return angle, separation
 #	mode=1: return cos(angle), separation
 #Pass this v_n*time and vec(vtx->blob) in (m)
-	if len(a) != 3 or len(b) != 3:
+	if len(a) > 3 or len(b) > 3:
 		raise ValueError("compare_vecs requires 3-vectors for comparison")
 	norm_a = norm(a)
 	norm_b = norm(b)

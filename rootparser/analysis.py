@@ -21,6 +21,7 @@ import root_numpy as rnp
 #Numpy, and formatting
 import numpy as np
 np.set_printoptions(suppress=True)
+import scipy
 
 #evts and filters
 import event
@@ -225,7 +226,7 @@ def testEventAccess(filename, path, report=True):
 
 
 
-def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
+def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
     """
     Using an input filename
     Return:
@@ -245,7 +246,8 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
     """
     pid = os.getpid()
 
-    filename, path, target, dest = tupl[0], tupl[1], tupl[2], tupl[3]
+    filename, path = tupl[0], tupl[1]
+    target, dest, tmp = tupl[2], tupl[3], tupl[4]
     filepath = "%s/%s" % (path, filename)
     log.info("PID %s parsing %s" % (pid, filepath))
 
@@ -258,13 +260,20 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
 
     #Set up a dct that can become a simple column/array dataframe
     #Contains tags, classifications
+    #TODO: Move this to learn
     if ML:
         ML_out = {
-                "event": [],            #this event
-                "blob_good": [],        #bool: was the blob a 'good' fit?
-                "CCQE": [],             #bool: was this event CCQE?
-                "blob_dtheta": [],      #float: how bad the angle was off?
-                "blob_dE": [],          #float: how bad was the energy off?
+                "event": [],          #!!!RELATIVE event number
+                "blob_good": [],      #bool: was the blob a 'good' fit?
+                "CCQE": [],           #bool: was this event CCQE?
+                "dphiXY": [],         #float: angle was off?
+                "dthetaXZ": [],       #float: angle was off?
+                "dthetaYZ": [],       #float: angle was off?
+                "blob_dX": [],
+                "blob_dY": [],
+                "blob_dZ": [],
+                "blob_dE": []        #float: was the energy off?
+
         }
 
     #Parse input files
@@ -286,10 +295,9 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                 IO.get_subtree().GetEvent(e_i)
 
                 #DEBUG:
-                if e_i > 1000:
-                    break
+
                 if e_i % 10000 == 0:
-                    log.info("Processing event %i" % e_i)
+                    log.info("  (%s:) Processing event %i" % (pid, e_i))
 
                 #PARTICLES
                 particle_lst = get_particle_lst(e_i, datatype)
@@ -328,11 +336,22 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
 
                 """
 
-                #KINE-NEUTRON
-                mc_kine_n_P = make_kine_neutron(mc_mu_P)
-                if mc_kine_n_P is None:
+                #KINE-NEUTRONS
+                try:
+                    mc_kine_n_P = make_kine_neutron(mc_mu_P)
+                except ValueError:
+                    #log.warning("MakeKineNeutron: Negative Neutron Energy calculated.")
+                    mc_kine_n_P = None
+
+                try:
+                    recon_kine_n_P = make_kine_neutron(recon_mu_P)
+                except ValueError:
+                    #log.warning("MakeKineNeutron: Negative Neutron Energy calculated.")
+                    recon_kine_n_P = None
+
+                if mc_kine_n_P is None or recon_kine_n_P is None:
                     continue
-                #recon_kine_n_P = make_kine_neutron(mc_mu_P)
+
                 #VERTEX
                 mc_vtx = get_vtx(e_i, datatype=0)
                 recon_vtx = get_vtx(e_i, datatype=2)
@@ -357,12 +376,17 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
 
                 # CONVERSIONS, ROTATIONS
                 mc_kine_n_P = Mm.convert_E2T(mc_kine_n_P, Mm.m_n)
+                recon_kine_n_P = Mm.convert_E2T(recon_kine_n_P, Mm.m_n)
                 mc_n_P = Mm.convert_E2T(mc_n_P, Mm.m_n)
                 RVB = make_rvb(blob, vtx)
 
                 #rotations on mc parts
                 mc_kine_n_P = Mm.yz_rotation(mc_kine_n_P, datatype=0)
                 mc_n_P = Mm.yz_rotation(mc_n_P, datatype=0)
+                mc_mu_P = Mm.yz_rotation(mc_mu_P, datatype=0)
+
+                #phiT on data muon vs. neutron blbo
+                phiT_blob = Mm.calculate_phi_T(recon_mu_P[1:], RVB[1:],1)
 
                 #FIXME: Do we rotate the kine or make it using rotated mc?
 
@@ -374,24 +398,30 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                 evt.n_neutrons = n_neutrons
                 evt.n_blobs = n_blobs
                 evt.n_protons = count_protons(particle_lst)
+                evt.phiT = phiT_blob    #blob vs recon muon
                 #mc-specific metadata
                 if datatype == 0:
                     evt.int_type = get_mc_int_type(e_i)
+
                 #neutrons in this event
                 #TODO: PROTECT THESE KEYNAMES!!!
-                evt.n_dct = {
-                                    "recon_kine_n_P": None,
+                evt.dct = {
+                                    "recon_kine_n_P": recon_kine_n_P,
                                     "mc_kine_n_P": mc_kine_n_P,
                                     "mc_n_P": mc_n_P,
-                                    "n_blob": RVB
+                                    "n_blob": RVB,
+                                    "mc_mu": mc_mu_P,
+                                    "data_mu": recon_mu_P
                              }
-                evt.mu_dct = {"mc_mu": mc_mu_P, "data_mu": recon_mu_P}
+
                 #FILTERS
 
-                #filters: 'continue' means we're done with this event
                 if not fi.AntiQE_like_event(evt):
                     #log.info("Event %i not CCQE-like" % e_i )
                     continue
+
+                # if not fi.phiT_good(evt):
+                #     continue
                 #print DEBUG
 
                 # log.info("Event %i particles:\n" % e_i)
@@ -403,34 +433,64 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
                 # print "MC NEUTRON: ", mc_n_P[1:], "\n\n"
 
                 #HISTOGRAMMING
+                #Calculations are made in histogram library for locality
                 if hist:
 
-                    hi.make_comp_hists(evt.n_dct)      #N-COMPARISONS
-                    hi.make_neutron_hists(evt.n_dct)   #INDIVIDUAL NEUTRONS
+                    hi.make_comp_hists(evt.dct)      #N-COMPARISONS
+                    hi.make_neutron_hists(evt.dct)   #INDIVIDUAL NEUTRONS
 
                     #DATA QUALITY
-                    for mu, mu_P in evt.mu_dct.iteritems():
+
+                    #Measure angular distribution
+                    for mu in hi.MUONS:
+                        mu_P = evt.dct.get(mu)
                         hi.make_vec_angle_hists(mu, mu_P)
-                    for n, n_P in evt.n_dct.iteritems():
+
+                    for n in hi.NEUTRONS:
+                        n_P = evt.dct.get(n)
                         if n_P is None:
                             continue
                         hi.make_vec_angle_hists(n, n_P)
+
+                    #Measure transverse angle separation between particles
+
+                    for pair in hi.ANGLE_PAIRS:
+                        parts = [evt.dct.get(name) for name in pair]
+                        #Transverse angular separation (phi_T)
+                        phi_XY = hi.make_Dphi_hist(pair[0], pair[1], parts[0], parts[1])
+                        #ThetaX, ThetaY separation
+                        theta_XZ, theta_YZ = hi.make_Dtheta_hists(pair[0], pair[1], parts[0], parts[1])
+
+                        #Keep blob stats
+                        if ML and pair == ("n_blob", "mc_n_P"):
+                            ML_out.get("dphiXY").append(phi_XY)
+                            ML_out.get("dthetaXZ").append(theta_XZ)
+                            ML_out.get("dthetaYZ").append(theta_YZ)
+
+
+
+
                 #Checking relative angles
 
                 #MC kine-neutron vs. SINGLE mc neutron
                 dangle, separation = Mm.compare_vecs(mc_n_P[1:], mc_kine_n_P[1:])
-                dE = 0.
+                dblob = mc_n_P - RVB
                 blob_good = False
                 #ML training set
                 if ML:
                     ML_out.get("event").append(e_i)
                     ML_out.get("CCQE").append(True)
                     ML_out.get("blob_good").append(blob_good)
-                    ML_out.get("blob_dtheta").append(blob_good)
-                    ML_out.get("blob_dE").append(dE)
+                    ML_out.get("blob_dE").append(dblob[0])
+                    ML_out.get("blob_dX").append(dblob[1])
+                    ML_out.get("blob_dY").append(dblob[2])
+                    ML_out.get("blob_dZ").append(dblob[3])
+                    # ML_out.get("mc_n_i").append(mc_neutrons[0].index)
+                    # ML_out.get("mu_i").append(mu.index)
                     #Pass along our selected neutrons
                     for k_n, vec in evt.lookup_dct.iteritems():
                         ML_out[k_n] = vec
+
                 continue
 
 
@@ -448,15 +508,12 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=False):
         if hist:
             #Write out histograms
             hi.write_hists(hist_target)
-            hi.post_process_hists(hist_target)
         if ML:
-            #package dct contents into np.arrays
-            for k, v in ML_out:
-                ML_out[k] = np.array(v)
-            return ML_out
+            #Output a dictionary of good events with classifiers
+            return IO.dump_obj(ML_out, IO.picklename(filename), tmp )
         #FIXME: Different return objects is bad...
         else:
-            return {}
+            return filepath
 
 
 def make_rvb(blob, vtx):
@@ -465,7 +522,7 @@ def make_rvb(blob, vtx):
 
     #blob has format [E,x, y, z]
     #vtx has format [x, y, z, t]
-    rvb = [0,0,0,0]
+    rvb = [blob[0],0,0,0]
     for i in range(len(rvb)):
         if i == 0:
             continue

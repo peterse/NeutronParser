@@ -48,11 +48,12 @@ dest = sys.argv[4]
 
 tmp_dest_files = sys.argv[5]
 tmp_dest_hists = sys.argv[6]
+tmp_other = sys.argv[7]
 
 try:
-    N_THREADS = sys.argv[7]
+    N_THREADS = sys.argv[8]
 except IndexError:
-    N_THREADS = 1
+    N_THREADS = 8
     #N_THREADS = parallel.N_THREADS
     log.info("Setting N_THREADS to %i" % N_THREADS)
 
@@ -97,34 +98,36 @@ def main():
     paths = [tmp_dest_files for i in range(len(filenames))]
     targets = ["hist%i.root" % i for i in range(len(filenames))]
     dests = [tmp_dest_hists for i in range(len(filenames))]
+    tmp = [tmp_other for i in range(len(filenames))]
     #the argument package for ParseEventsNP:
-    #(file_to_analyze, path, target_histogram, target_directory)
-    parallel_args = zip(filenames, paths, targets, dests)
+    #(file_to_analyze, path, target_histogram, target_directory, tmp)
+    parallel_args = zip(filenames, paths, targets, dests, tmp)
 
-    Time.start("Parse Events")
     #Parse the separate files in parallel
+    Time.start("Parse Events")
     if N_THREADS > 1:
         event_dct_lst = Parallel.run(analysis.ParseEventsNP, parallel_args, ParallelPool=Pool)
     else:
         event_dct_lst = map(analysis.ParseEventsNP, parallel_args)
     dt1 = Time.end()
 
-
-    return
-    # #Output should be clean
-    #Error handling as a future target...
-    # if complete_lst != [0 for i in range(N_THREADS)]:
-    #     log.error("Failure mode returned non-zero in analysis.ParseEventsNP")
-    #     sys.exit()
-    # else:
-
     #Join parallel-processed histogram files
+    Time.start("Merge Histograms")
     merge_targets = ["%s/%s" % (d, t) for d,t in zip(dests, targets)]
-    print merge_targets
     all_hist_file = IO.join_all_histograms(merge_targets, target, dest)
+    dt2 = Time.end()
+
+    #Post-processing final hist_file
+    #hi.post_process_hists(all_hist_file)
+
+
+    #Learn: Regression, correlation
+
+
 
 
     return 0
+
 
 if __name__ == "__main__":
 

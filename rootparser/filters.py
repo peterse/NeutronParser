@@ -2,7 +2,7 @@
 
 
 #Filter criteria
-PHI_T_MIN = 175     #transverse angle of mu,n -> should be 180deg
+PHI_T_DIFF_MAX = 20     #transverse angle of mu,n -> should be 180deg
 E_N_MIN = 50        #neutron (and kine neutron!) minimum angle
 RVB_MIN = 0         #minimum vertex-blob distance
 
@@ -56,8 +56,11 @@ def kine_neutrons_good(evt):
     return True
 
 def phiT_good(evt):
-    #Require the muon/neutron to be move at ~180deg in the xverse plane
-    return evt.mu_dot_n_T < PHI_T_MIN
+    #Require the muon/neutron transverse angle to be within
+    # 'diff' of 180deg devrees
+    upper = 180 + PHI_T_DIFF_MAX
+    lower = 180 - PHI_T_DIFF_MAX
+    return evt.phiT < upper and evt.phiT > lower
 
 def E_N_good(evt):
     #Precondition: evt must be filtered for 1 neutron first

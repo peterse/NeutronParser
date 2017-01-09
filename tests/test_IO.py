@@ -9,6 +9,7 @@ from timer import Timer
 #For IO files
 import maketestfiles as testfile
 import IO
+import histogram as hi
 
 from rootparser_exceptions import RootFileError, log
 #For IO tools
@@ -94,7 +95,9 @@ class IOTest(unittest.TestCase):
 
         tmp = "%s/tmp" % os.getcwd()
         N = 8
+        log.info("test_filesplit")
         file_lst = IO.split_file(testfile.MC_filename, 8, dest=tmp)
+        print file_lst
         #keep for later use
         global SPLIT_FILES
         SPLIT_FILES = file_lst
@@ -120,6 +123,8 @@ class IOTest(unittest.TestCase):
 
     def test_join_all_histograms(self):
 
+        #skip
+        return
         #FIXME: destination is relative to call location...
         #pre = os.getcwd()
         #SPLIT_FILES = ["%s/tmp/%s" % (pre, fname) for fname in os.listdir("%s/tmp" % os.getcwd()) ]
@@ -132,6 +137,18 @@ class IOTest(unittest.TestCase):
         target = "test_merge.root"
         dest = testfile.TMP_HIST
         hist_out = IO.join_all_histograms(merge_targets, target, dest)
+
+    def test_hist_compare(self):
+
+        global SPLIT_FILES
+        if SPLIT_FILES is None:
+            log.error("Need to re-run split_file test and keep result paths")
+            raise ValueError
+
+        target = "test_compare.root"
+        f1, f2 = SPLIT_FILES[:2]
+
+        hi.hist_compare(f1, f2, target)
 
 
 if __name__ == "__main__":

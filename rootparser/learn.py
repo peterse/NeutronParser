@@ -24,6 +24,9 @@ import numpy as np
 np.set_printoptions(suppress=True)
 import pandas as pd
 
+#Correlation functions
+import scipy
+
 #evts and filters
 import event
 import filters as fi
@@ -36,32 +39,85 @@ sys.path.append("/home/epeters/NeutronParser/tests")
 import maketestfiles as testfile
 from parallel import ThreadManager
 from multiprocessing import Pool
+import matplotlib.pyplot as plt
 
 import inspect
 #logging
 from rootparser_exceptions import log
 
 
+
+BRANCHES_TO_GET = ["CCQEAntiNuTool_Q2", "mc_targetZ",
+        "mc_Q2", "mc_nFSPart",
+        "event", "CCQEAntiNuTool_E_mu",
+        "CCQEAntiNuTool_px_mu", "CCQEAntiNuTool_py_mu",
+        "CCQEAntiNuTool_pz_mu", "mc_intType",
+        "mc_incomingE"]
+
+COLUMNS_TO_MAKE = ["blob_dE", "blob_dX", "blob_dY", "blob_dZ",
+        "dphiXY", "dthetaXZ", "dthetaYZ"]
+
+col_classes = {"CCQEAntiNuTool_Q2": "ratio",
+                "mc_targetZ": "nomial",
+                "mc_Q2": "ratio",
+                "mc_nFSPart": "ratio",
+                "event": "ordinal",
+                "CCQEAntiNuTool_E_mu": "ratio",
+                "CCQEAntiNuTool_px_mu": "ratio",
+                "CCQEAntiNuTool_py_mu": "ratio",
+                "CCQEAntiNuTool_pz_mu": "ratio",
+                "mc_intType": "nominal",
+                "mc_incomingE": "ratio"}
+
+#TODO:
+def check_col_classes(cols, class_dct):
+    #Make sure that all df columns are classified
+    return
+
 def branches_to_get():
     #Return a list of branchnames that we care about
     out = []
-
-    #Basic requirements: All of the data we've parsed
-    for k, br in IO.lookup_dct.iteritems():
-        if br is None:
-            continue
-        #Expand prefixes
-        if "PREFIX" in k:
-            out += IO.expand_prefix(br)
-        else:
-            out.append(br)
+    #
+    #
+    # #Basic requirements: All of the data we've parsed
+    # for k, br in IO.lookup_dct.iteritems():
+    #     if br is None:
+    #         continue
+    #     #Expand prefixes
+    #     if "PREFIX" in k:
+    #         out += IO.expand_prefix(br)
+    #     else:
+    #         out.append(br)
 
     #TODO: Additional branches on which to regress
+    #Correlation studies: remove unecessary vars
+    out = ["CCQEAntiNuTool_Q2", "mc_targetZ",
+            "mc_Q2", "mc_nFSPart",
+            "event", "CCQEAntiNuTool_E_mu",
+            "CCQEAntiNuTool_px_mu", "CCQEAntiNuTool_py_mu",
+            "CCQEAntiNuTool_pz_mu", "mc_intType",
+            "mc_incomingE"]
 
     return out
 
+def columns_to_create():
+    #just a list of columns that analysisNP will output
+    out = ["blob_dE", "blob_dX", "blob_dY", "blob_dZ",
+            "dphiXY", "dthetaXZ", "dthetaYZ"]
+    return out
 
+def make_correlation_pairs():
+    #put together pairs of column names to correlate
+    out = []
+    global col_classes
+    for x in branches_to_get():
+        #I have listed all of the columns to analyze..
+        for y in columns_to_create():
+            #only use ratio-valued vars
+            if col_classes.get(x) == "ratio":
+                out.append((x,y))
 
+    return out
 
 def pad_array(arr):
     """
@@ -101,11 +157,24 @@ def flatten_array(arr):
     #a structured array after concatating all of the padded arrs
     fieldnames = []
     formats = []
+
+    #Flatten columns whose entries are objects == np.arrays
+    log.info("Flattening vector-type columns and padding to max vector length")
     for i, name in enumerate(arr.dtype.names):
 
         dt = arr.dtype.fields[name][0]
-        #Flatten columns whose entries are objects == np.arrays
-        if dt.hasobject:
+        # print name, dt.type
+        # print arr[name][0]
+        # print "ndim:", arr[name][0].ndim
+        # print "shape:", arr[name][0].shape
+        # print "kind:", dt.kind
+        # print "dtype", np.dtype(dt)
+        # print "is scalar:", np.issctype(np.dtype(dt)), "\n"
+        # #print "is object:", np.dtype(dt) == np.dtype(object)
+        # #print "can cast:", np.can_cast(np.dtype(dt), np.dtype(object)), "\n"
+        # continue
+
+        if np.dtype(dt)==np.dtype(object) or dt.type==np.void:
             # 1: produce a padded array for this column
             padded = pad_array(arr[name])
             dims = np.shape(padded)
@@ -124,7 +193,6 @@ def flatten_array(arr):
             #new = new.reshape(len(new), len(new[0]))
         else:
             #Otherwise, keep scalar columns (but make them columns!)
-
             i_fieldnames = [name]
             i_formats = [type(arr[name][0])]
             new = arr[name]
@@ -139,8 +207,6 @@ def flatten_array(arr):
             base = new
         else:
             base = np.hstack( (base,new) )
-        if i == 2:
-            break
 
     #4: label the columns in the new, padded, 2D array
     dt_dct = dict(names=fieldnames, formats=formats )
@@ -194,26 +260,45 @@ def flatten_array(arr):
     # newdt = np.dtype(  )
     # out = np.array()
 
-def make_clean_data(filename, dct):
+def reconstruct_vals_mc(df):
     """
-        Take a prepared dct from ParseEventsNP that finds good events
-        and categorizes/locates blobs. Form an np.array from the rootfile
-        using these events only, and keeping only relevant columns
-        Arguments:
-            filename - rootfile
+    Analysis-specific calculations to reconstruct important
+    quantities from the labeled df and then shave it
+    """
+
+    #Fat cost: Pick our correct particles
+
+    # df["E_mu"] = pd.Series( , index=df.index)
+    # df["px_mu"] =
+    # df["py_mu"] =
+    # df["pz_mu"] =
+
+def make_clean_dataframe(filename, dct):
+    """
+    Take a prepared dct from ParseEventsNP that finds good events
+    and categorizes/locates blobs. Form an np.array from the
+    rootfile using these events only, and keeping only relevant
+    columns
+    Args:
+        filename - rootfile
     """
 
     #DEBUG:
     FNAME = "/home/epeters/NeutronParser/sample4/merged_CCQEAntiNuTool_minervamc_nouniverse_nomec.root"
-    DCT = {"event": range(20)}
+    DCT = {"event": range(20), "DERP": range(20,40)}
 
     if filename is None:
         filename = FNAME
     if dct is None:
         dct = DCT
 
+    #convert the input dct to a dataframe
+    tags_df = pd.DataFrame(dct)
+
     #Select specific branches
     brs = branches_to_get()
+    log.info("The following branches will be captured: %s" \
+                % "\n\t".join(brs))
 
     #Various filters to save our precious memory
     mc_FSPart_max = 10
@@ -233,72 +318,73 @@ def make_clean_data(filename, dct):
             #Select for good events from input dct
             good_evts = set(dct.get("event"))
             @np.vectorize
-            def selected(elmt): return elmt in good_evts
+            def selected(e_i): return e_i in good_evts
             tree_arr = tree_arr[ selected(tree_arr["event"])]
 
-
-            #Flatten the array out
-            #tree_arr = flatten_array(tree_arr)
-
+            #Flatten the array out so that vectors do not produce ragged edges
+            #TRUNCATES AT MAX PARTICLES
+            tree_arr = flatten_array(tree_arr)
             if len(tree_arr) == 0:
                 continue
-            return tree_arr
+            tree_df = pd.DataFrame(tree_arr)
+
+            #merge the tree_array with the input tags:
+            df_all = pd.merge(tags_df, tree_df, on="event")
+
+            return df_all
 
 
-
-
-
-            rows = len(tree_arr)
-            cols = len(tree_arr[0])
-            print rows, cols
-            print tree_arr[0]
-            for item in tree_arr[0]:
-                print item, type(item)
-            test1 = np.array([0,1,2,3])
-            test2 = np.array([ (0,1, np.array([2,3])) ], dtype="int8, int8, 2int8")
-            df1 = pd.DataFrame(test1)
-            print "df1"
-            df2 = pd.DataFrame(test2)
-            print "df2"
-
-
-            return
-            tree_arr.reshape(rows, cols)
-            #AGh - DataFrame isn't taking...problems:
-            #   cannot contain list types
-            #   cannot contain nested tupls -> remake into 5000Xlen(tuple) ndarray?
-
-            return
-            print tree_arr.shape
-            print tree_arr.ndim
-            df = pd.DataFrame(tree_arr)
-            print df.info()
-            return
-            print tree_arr.dtype.names
-            print tree_arr
-
-def BlobClassifier(tupl, hist=True, filt=True, dump=True, ML=False):
-
+def pearson_correlate_cols(df, pairs, report=True, plot=True):
     """
-    Passed a
-    Return:
-      The input tuple - this will be parsed to grab the target histograms
+    Compute the correlation between each pair of columns in pairs
     Args:
-    tupl components
-      [0] filename is the file being analyzed
-      [1] path is its location
-      [2] target is the desired output filename
-      [3] dest is its location
-
-    KWArgs:
-      filt:
-      dump:
-      hist:
-      ML:
+        -df: dataframe, containing all cols listed in pairs
+        -pairs: list of tuples of (col1, col2) string names
+    Return:
+        -out: list of (col1, col2, r, pval)
     """
+    out = []
+    from scipy.stats import pearsonr
 
-    return
+    if plot:
+        count = 1
+        fig = plt.figure()
 
+    for i, pair in enumerate(pairs):
+        x = df[pair[0]]
+        y = df[pair[1]]
+        r, pval = pearsonr(x,y)
+        grp = (pair[0], pair[1], r, pval)
+        if report:
+            print "Columns %s vs %s:\n   r=%f p=%f" % grp
+
+        if plot:
+
+            ax = fig.add_subplot(2,2,count)
+            ax.set_xlabel(pair[0])
+            ax.set_ylabel(pair[1])
+            ax.scatter(x,y)
+            count += 1
+            #plot full fig or final plotset
+            if count == 4 or i == len(pairs)-1:
+                plt.show()
+                fig = plt.figure()
+                count = 1
+
+        out.append(grp)
+    #Sort by the pair r-values
+    return sorted(out, key=lambda x: x[2])
+
+def plot_cols(df, col1, col2, fig=None):
+    #plot col2 vs col1
+    if fig==None:
+        fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel(col1)
+    ax.set_ylabel(col2)
+    ax.scatter(df[col1], df[col2])
+
+    return ax
 
 
 def MLsandbox(filename, path, target, dest, hist=True, filt=True, dump=True):
@@ -318,3 +404,16 @@ def MLsandbox(filename, path, target, dest, hist=True, filt=True, dump=True):
             tree_arr = rnp.tree2array(subtree)
             print tree_arr.dtype.names
             print tree_arr[0]
+
+def main():
+    #TEST
+    dct = IO.load_obj("../temp/0.pickle")
+    df = make_clean_dataframe(None, dct)
+    pairs = make_correlation_pairs()
+    return df, pairs
+    #pairs = [()]
+    #correlations = pearson_correlate_cols(full_df, pairs)
+
+
+if __name__ == "__main__":
+    main()
