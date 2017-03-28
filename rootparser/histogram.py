@@ -39,7 +39,7 @@ n_pairs = []        #global tupl pairs of neutrons to compare - init
 n_singles = ["recon_kine_n_P", "mc_kine_n_P", "mc_n_P", "n_blob"]
 all_export_lst = [
                  ("null", (100,-1,1), "-" ),
-
+                 ("RVB_norm", (100, 0, 10000), "mm")
                 # ("n_trans_angle", (100,0,360), "deg" ),
                 # ("p_trans_angle", (100, 0, 360), "deg" ),
                 # ("nu_px", (100,-300, 300), "MeV/c" ),
@@ -74,8 +74,8 @@ all_export_lst = [
 
 
 #TODO: ALL POSSIBLE COMBINATIONS VS EVERYTHING WE'RE PLOTTING??
-ANGLE_PAIRS = [("mc_mu", "mc_n_P"), ("n_blob", "mc_n_P"),
-                ("mc_mu", "data_mu")]
+ANGLE_PAIRS = [("mc_mu", "mc_n_P"), ("data_mu", "n_blob"),
+                ("n_blob", "mc_n_P"), ("mc_mu", "data_mu")]
 NEUTRONS = ["recon_kine_n_P", "mc_kine_n_P", "mc_n_P", "n_blob"]
 MUONS = ["mc_mu", "data_mu"]
 
@@ -94,11 +94,11 @@ def make_n_comp_rel_e_name(tupl):
 
 #Muon plotnames for backwards compatibility
 def make_thetaX_name(mu_name):
-    return "%s_thetaX" % mu_name
+    return "%s_thetaXZ" % mu_name
 def make_thetaY_name(mu_name):
-    return "%s_thetaY" % mu_name
+    return "%s_thetaYZ" % mu_name
 def make_phiZ_name(mu_name):
-    return "%s_phiZ" % mu_name
+    return "%s_phiXY" % mu_name
 
 def make_Dphi_name(name1, name2):
     return "DPHI_XY_%s_%s" % (name1, name2)
@@ -106,6 +106,8 @@ def make_DthetaX_name(name1, name2):
     return "DTHETA_XZ_%s_%s" % (name1, name2)
 def make_DthetaY_name(name1, name2):
     return "DTHETA_YZ_%s_%s" % (name1, name2)
+def make_DTHETA_name(name1, name2):
+    return "DTHETA_%s_vs_%s" % (name1, name2)
 
 def init_hist_dct(export_lst):
     #initialize a dictionary of histograms like {name: handle}
@@ -254,12 +256,15 @@ def init_thetas(target):
         Dphi_name = make_Dphi_name(pair[0], pair[1])
         DthetaX_name = make_DthetaX_name(pair[0], pair[1])
         DthetaY_name = make_DthetaY_name(pair[0], pair[1])
-        if pair == ("mc_mu", "mc_n_P"):
+        DTHETA_name = make_DTHETA_name(pair[0], pair[1])
+        if pair in [("mc_mu", "mc_n_P"), ("data_mu", "n_blob")]:
             target.append((Dphi_name,  (200, 0, 360), "deg") )
         else:
             target.append((Dphi_name,  (200, -180, 180), "deg") )
+
         target.append((DthetaX_name,  (200, -180, 180), "deg") )
         target.append((DthetaY_name,  (200, -180, 180), "deg") )
+        target.append((DTHETA_name,  (200, 0, 180), "deg") )
     return target
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -302,6 +307,7 @@ def make_vec_angle_hists(name, P):
     histname_X= make_thetaX_name(name)
     histname_Y = make_thetaY_name(name)
     histname_Z = make_phiZ_name(name)
+
     fill_hist(histname_X, np.degrees(np.arctan2(P[1], P[3])) )
     fill_hist(histname_Y, np.degrees(np.arctan2(P[2], P[3])) )
     fill_hist(histname_Z, np.degrees(np.arctan2(P[2], P[1])) )
@@ -314,7 +320,7 @@ def make_Dphi_hist(name1, name2, P1, P2):
     #Plot the differnce in phiZ for two particles
     histname = make_Dphi_name(name1, name2)
     #Plot centered at 180 for muon-neutron:
-    if (name1, name2) == ("mc_mu", "mc_n_P"):
+    if (name1, name2) in [("mc_mu", "mc_n_P"), ("data_mu", "n_blob")]:
         mode = 1
     else:
         mode = 0
@@ -327,13 +333,25 @@ def make_Dtheta_hists(name1, name2, P1, P2):
     #Plot the differnce in thetaX, thetaY for two particles
     histname_X = make_DthetaX_name(name1, name2)
     histname_Y = make_DthetaY_name(name1, name2)
+    histname_THETA = make_DTHETA_name(name1, name2)
 
     theta_XZ = Mm.calculate_theta_Tx(P1[1:], P2[1:])
     theta_YZ = Mm.calculate_theta_Ty(P1[1:], P2[1:])
+    DTHETA, D = Mm.compare_vecs(P1[1:], P2[1:])
 
     fill_hist(histname_X, theta_XZ)
     fill_hist(histname_Y, theta_YZ)
-    return theta_XZ, theta_YZ
+    fill_hist(histname_THETA, DTHETA)
+
+    return theta_XZ, theta_YZ, DTHETA
+
+def make_rvb_hist(vec):
+    #Plot the length of the vertex-blob separation
+
+    rvb_norm = Mm.norm(vec)
+    fill_hist("RVB_norm", rvb_norm)
+
+    return rvb_norm
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # FORMATTING

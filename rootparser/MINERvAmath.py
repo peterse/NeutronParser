@@ -159,7 +159,7 @@ def calculate_theta_Ty(a,b):
 	return np.degrees(diff)
 
 def compare_vecs(a, b, mode=0):
-#Given two spacial 3vecs (unnormalized), compares angle between them
+#Given two spacial 3vecs (unnormalized), compares angle between them IN degrees
 #	mode=0: return angle, separation
 #	mode=1: return cos(angle), separation
 #Pass this v_n*time and vec(vtx->blob) in (m)

@@ -14,6 +14,7 @@ import IO
 import maketestfiles as testfile
 
 import analysis
+import filters as fi
 
 #For parallel computation
 import parallel
@@ -22,8 +23,14 @@ Parallel = ThreadManager(n_processes=parallel.N_THREADS)     #Threading
 
 class AnalysisTest(unittest.TestCase):
 
+    def test_filters(self):
+        deck = "sample_filter.txt"
+        print "checking filter deck %s" % deck
+        print fi.SetFilters(deck)
 
     def test_ParseEventsNP(self):
+        #pass
+        return
         #non-OO version for event parsing; still uses cut subtrees
         pid = os.getpid()
 
@@ -35,5 +42,5 @@ class AnalysisTest(unittest.TestCase):
         analysis.ParseEventsNP(filename, path, target, dest)
 if __name__ == "__main__":
 
-    testfile.recreate_testfile()
+#    testfile.recreate_testfile()
     unittest.main()

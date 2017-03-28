@@ -20,6 +20,9 @@ import subprocess #call, check_output
 import shutil
 import math
 
+#Some caveman stuff with pyROOT
+import array
+
 import pickle #serializing python objects
 #Debugging
 sys.path.append("/home/epeters/NeutronParser/tests")
@@ -82,12 +85,26 @@ def join_all_histograms(file_lst, target, dest):
         dest: Where the merged file will be saved
     Return:
         String with full path of merged file
-
     Warning! One target histogram file will be destroyed!
     """
     f_p = [(d,f) for d,f in [split_path(p) for p in file_lst] ]
-    target_path = "%s/%s" % (dest, target)
+    just_files = [f for d,f in f_p]
+    just_paths = [d for d,f in f_p]
 
+    #Check that everything's in the same place
+    if len(set(just_paths)) != 1:
+        log.error("Cannot merge histograms from separate directories")
+        raise IOError
+    else:
+        source_path = just_paths[0]
+
+
+
+    target_path = "%s/%s" % (dest, target)
+    print target_path
+    if os.path.isfile(target_path):
+        log.warning("Removing %s" % target_path)
+        os.remove(target_path)
     #copy the first file as a base for addition
     #shutil.copy(file_lst[0], target_path)
 
@@ -99,33 +116,44 @@ def join_all_histograms(file_lst, target, dest):
 
     #get a list of the histograms we're going to iterate over:
     all_hists = []
-    with cd(dest):
-        all_hists = fetch_histlist(base)
+    with cd(source_path):
+        #Feed all hists into call argument on hadd
+        cmd = ["hadd", "-f", target] + just_files
+        try:
+            subprocess.call(cmd)
+        except OSError:
+            log.error("Hadd not supported on system. Reimplement adding histograms by hand")
+            raise OSError
+        else:
+            shutil.move(target, dest)
 
-
-        i=0
-        for other_file in file_lst[1:]:
-            #BUG: opening these as inner context dumped entire contents into outer context...
-            with rootpy.io.root_open(other_file, "r") as s2:
-                #iterate over the histograms we know we've generated
-                for histname in all_hists:
-                    hist2 = s2.Get(histname)
-                    with rootpy.io.root_open(base, "UPDATE") as s1:
-                        #add the histograms into a clone...
-                        hist1 = s1.Get(histname)
-                        hist1.Add(hist2)
-                        hist1.Write("temp")
-                        #s1.Write()
-                        #...and murder the original - THE PRESTIGE!
-                        s1.Delete(histname+";1")
-                        s1.Get("temp").SetName(histname)
-                        s1.Get(histname).Write()
-                        s1.Delete("temp;1")
-
-            #skip those you can't find (try)
-
-    log.info("Histograms collapsed into file %s" % base)
-    return base
+    log.info("Histograms collapsed into file %s" % target_path)
+    return target_path
+    #
+    # if 0:
+    #     i=0
+    #     for other_file in file_lst[1:]:
+    #         #BUG: opening these as inner context dumped entire contents into outer context...
+    #         with rootpy.io.root_open(other_file, "r") as s2:
+    #             #iterate over the histograms we know we've generated
+    #             for histname in all_hists:
+    #                 hist2 = s2.Get(histname)
+    #                 with rootpy.io.root_open(base, "UPDATE") as s1:
+    #                     #add the histograms into a clone...
+    #                     hist1 = s1.Get(histname)
+    #                     hist1.Add(hist2)
+    #                     hist1.Write("temp")
+    #                     #s1.Write()
+    #                     #...and murder the original - THE PRESTIGE!
+    #                     s1.Delete(histname+";1")
+    #                     s1.Get("temp").SetName(histname)
+    #                     s1.Get(histname).Write()
+    #                     s1.Delete("temp;1")
+    #
+    #         #skip those you can't find (try)
+    #
+    # log.info("Histograms collapsed into file %s" % base)
+    # return base
 
 ######################################################################
 
@@ -347,29 +375,24 @@ def split_file(src, N, path=None, dest=None, recreate=True):
                             with rootpy.io.root_open(fname, MODE) as t:
                                 #Build a copy tree in the context of j.root
                                 #FIXME: Get a standardized TreeTemplate for model= kwarg
-                                copied = handle.CopyTree(cutstring)
+                                copied = this_tree.copy_tree(cutstring)
+                                #Bookmark the event number from the larger file
+                                #   that this file starts from
 
-                                #Move the histograms INTO this file once.
-                                # if i_tree == 0:
-                                #     ROOT.gROOT.SetBatch()
-                                #     c = ROOT.TCanvas()
+                                # arr = array.array( 'i', [0])
+                                # copied.Branch("event_base", arr, "event_base/I")
+                                # arr[0] = cuts[i]
+                                # copied.Fill()
+                                # copied.create_branches({"event_base": "I"})
+                                # copied.event_base = cuts[i]
+
                                 #FIXME : we don't really need to copy over hists
                                 #We want to write once.
                                 if i_tree == 0:
                                     for i, hist in enumerate(all_hists):
                                         hist.Write()
-                                #         hist.Draw(cutstring)
-                                #         c.Update()
-                                #         #print i, hist.GetName()
 
                                 t.write()
-                                    #NEED TO GET THE ACTUALLY HISTOGRAM DRAWN IN THE TREE!!!
-                                    # hist = this_tree.Draw(histname, selection=cutstring, hist=histname)
-                                    # hist = ROOT.gPad.GetPrimitive(histname)
-                                    # #current context is fname
-                                    # hist.Write()
-
-
                                 #Add filename upon first successful write
                             if i_tree == 0:
                                 fnames.append("%s/%s" % (dest, fname))
@@ -654,7 +677,7 @@ def versioncontrol(func):
 
 def dump_obj(obj, filename, path):
     #serialize a python object to a file
-    #A file takes a single object.
+    #A file takes a single object -> overwrite what we f
     with cd(path):
         with open(filename, "w+") as fh:
             pickle.dump(obj, fh)
@@ -673,9 +696,21 @@ def picklename(filename):
 def clean_pickle(source, target):
 
     with cd(source):
-        pickles = [f for f in os.listdir(os.getcwd()) if ".pickle" in f]
+        pickles = get_pickle_files(os.getcwd())
         for fname in pickles:
             shutil.move(fname, target)
+
+def get_suffix_files(path, suff):
+    #return a sorted list of files at path with suffix suff
+    fnames = [ f for f in os.listdir(path) if suff in f]
+    #Sort by the number in the first place
+    #FIXME: Cannot be >9...
+    fnames = sorted(fnames, key=lambda x:int(x[0]) )
+    out = ["%s/%s" % (path, f) for f in fnames]
+    return out
+
+
+
 
 if __name__ == "__main__":
     pass

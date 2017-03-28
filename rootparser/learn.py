@@ -39,25 +39,39 @@ sys.path.append("/home/epeters/NeutronParser/tests")
 import maketestfiles as testfile
 from parallel import ThreadManager
 from multiprocessing import Pool
+
+#Default formatting
 import matplotlib.pyplot as plt
+SIZE = 8
+MEDIUM_SIZE = 10
+BIGGER_SIZE = 12
+plt.rc('font', size=SIZE)                # controls default text sizes
+plt.rc('axes', titlesize=SIZE)           # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SIZE)          # fontsize of the tick labels
+plt.rc('ytick', labelsize=SIZE)          # fontsize of the tick labels
+plt.rc('legend', fontsize=SIZE)          # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 import inspect
 #logging
 from rootparser_exceptions import log
 
 
-
+#Branches that are converted into np struct arr
 BRANCHES_TO_GET = ["CCQEAntiNuTool_Q2", "mc_targetZ",
-        "mc_Q2", "mc_nFSPart",
-        "event", "CCQEAntiNuTool_E_mu",
-        "CCQEAntiNuTool_px_mu", "CCQEAntiNuTool_py_mu",
-        "CCQEAntiNuTool_pz_mu", "mc_intType",
-        "mc_incomingE"]
-
-COLUMNS_TO_MAKE = ["blob_dE", "blob_dX", "blob_dY", "blob_dZ",
-        "dphiXY", "dthetaXZ", "dthetaYZ"]
-
-col_classes = {"CCQEAntiNuTool_Q2": "ratio",
+                    "mc_Q2", "mc_nFSPart",
+                    "event", "CCQEAntiNuTool_E_mu",
+                    "CCQEAntiNuTool_px_mu", "CCQEAntiNuTool_py_mu",
+                    "CCQEAntiNuTool_pz_mu", "mc_incomingE"]
+#Columns produced by separate analysis on the file
+ANALYSIS_DCT = {
+                1: ["blob_dE", "blob_dX", "blob_dY", "blob_dZ",
+                    "dphiXY", "dthetaXZ", "dthetaYZ"],
+                2: ["theta_mu_blob", "phiT_blob"]
+                }
+#Categorizations of the branches
+COL_CLASSES = {"CCQEAntiNuTool_Q2": "ratio",
                 "mc_targetZ": "nomial",
                 "mc_Q2": "ratio",
                 "mc_nFSPart": "ratio",
@@ -69,52 +83,34 @@ col_classes = {"CCQEAntiNuTool_Q2": "ratio",
                 "mc_intType": "nominal",
                 "mc_incomingE": "ratio"}
 
+
+def make_ML_dct(option):
+    #Build a set of columns to populate depending on the analysis
+    #option. Include some mandatory labels
+    out = {"event": [], "blob_E": [], "rvb": [], "RSG": []}
+    #Initialize keys based on the ANALYSIS_DCT
+    global ANALYSIS_DCT
+    for col in ANALYSIS_DCT[option]:
+        out[col] = []
+    return out
+
+
+
 #TODO:
 def check_col_classes(cols, class_dct):
     #Make sure that all df columns are classified
     return
 
-def branches_to_get():
-    #Return a list of branchnames that we care about
-    out = []
-    #
-    #
-    # #Basic requirements: All of the data we've parsed
-    # for k, br in IO.lookup_dct.iteritems():
-    #     if br is None:
-    #         continue
-    #     #Expand prefixes
-    #     if "PREFIX" in k:
-    #         out += IO.expand_prefix(br)
-    #     else:
-    #         out.append(br)
-
-    #TODO: Additional branches on which to regress
-    #Correlation studies: remove unecessary vars
-    out = ["CCQEAntiNuTool_Q2", "mc_targetZ",
-            "mc_Q2", "mc_nFSPart",
-            "event", "CCQEAntiNuTool_E_mu",
-            "CCQEAntiNuTool_px_mu", "CCQEAntiNuTool_py_mu",
-            "CCQEAntiNuTool_pz_mu", "mc_intType",
-            "mc_incomingE"]
-
-    return out
-
-def columns_to_create():
-    #just a list of columns that analysisNP will output
-    out = ["blob_dE", "blob_dX", "blob_dY", "blob_dZ",
-            "dphiXY", "dthetaXZ", "dthetaYZ"]
-    return out
-
-def make_correlation_pairs():
+def make_correlation_pairs(mode):
     #put together pairs of column names to correlate
+    #mode is the set of data found for this analysis
     out = []
-    global col_classes
-    for x in branches_to_get():
+    global COL_CLASSES, ANALYSIS_DCT, BRANCHES_TO_GET
+    for x in BRANCHES_TO_GET:
         #I have listed all of the columns to analyze..
-        for y in columns_to_create():
+        for y in ANALYSIS_DCT[mode]:
             #only use ratio-valued vars
-            if col_classes.get(x) == "ratio":
+            if COL_CLASSES.get(x) == "ratio":
                 out.append((x,y))
 
     return out
@@ -296,7 +292,7 @@ def make_clean_dataframe(filename, dct):
     tags_df = pd.DataFrame(dct)
 
     #Select specific branches
-    brs = branches_to_get()
+    brs = BRANCHES_TO_GET
     log.info("The following branches will be captured: %s" \
                 % "\n\t".join(brs))
 
@@ -313,14 +309,15 @@ def make_clean_dataframe(filename, dct):
             log.info("Converting tree %s to numpy array..." % subtree.GetName())
             #tree_arr = rnp.tree2array(subtree, branches=brs, selection=selection_str)
             tree_arr = rnp.tree2array(subtree, branches=brs)
+            # for k, v in dct.iteritems():
+            #     if k == "event":
+            #         print k, v
             log.info("...conversion finished")
-
             #Select for good events from input dct
             good_evts = set(dct.get("event"))
             @np.vectorize
             def selected(e_i): return e_i in good_evts
             tree_arr = tree_arr[ selected(tree_arr["event"])]
-
             #Flatten the array out so that vectors do not produce ragged edges
             #TRUNCATES AT MAX PARTICLES
             tree_arr = flatten_array(tree_arr)
@@ -334,7 +331,7 @@ def make_clean_dataframe(filename, dct):
             return df_all
 
 
-def pearson_correlate_cols(df, pairs, report=True, plot=True):
+def pearson_correlate_cols(df, pairs, report=True, plot=False):
     """
     Compute the correlation between each pair of columns in pairs
     Args:
@@ -386,30 +383,75 @@ def plot_cols(df, col1, col2, fig=None):
 
     return ax
 
+#
+# def MLsandbox(filename, path, target, dest, hist=True, filt=True, dump=True):
+#     pid = os.getpid()
+#     filepath = "%s/%s" % (path, filename)
+#     log.info("PID %s parsing %s" % (pid, filepath))
+#
+#     with rootpy.io.root_open(filepath) as fh:
+#         for subtree in IO.get_next_tree(fh):
+#             #pass the tree to the global space for access by funcs
+#             IO.put_subtree(pid, subtree)
+#
+#             #convert our subtree into an np array
+#             #TODO:
+#             datatype = 0
+#             filterlst = make_filter_list(datatype)
+#             tree_arr = rnp.tree2array(subtree)
+#             print tree_arr.dtype.names
+#             print tree_arr[0]
 
-def MLsandbox(filename, path, target, dest, hist=True, filt=True, dump=True):
-    pid = os.getpid()
-    filepath = "%s/%s" % (path, filename)
-    log.info("PID %s parsing %s" % (pid, filepath))
 
-    with rootpy.io.root_open(filepath) as fh:
-        for subtree in IO.get_next_tree(fh):
-            #pass the tree to the global space for access by funcs
-            IO.put_subtree(pid, subtree)
 
-            #convert our subtree into an np array
-            #TODO:
-            datatype = 0
-            filterlst = make_filter_list(datatype)
-            tree_arr = rnp.tree2array(subtree)
-            print tree_arr.dtype.names
-            print tree_arr[0]
+def plot_corr(df,size=10):
+    '''Function plots a graphical correlation matrix for each pair of columns in the dataframe.
 
-def main():
+    Input:
+        df: pandas DataFrame
+        size: vertical and horizontal size of the plot'''
+
+    corr = df.corr()
+    data = np.matrix(corr)
+    fig, ax = plt.subplots(figsize=(size+5, size+5))
+
+    #Set up text overlay
+    min_val, max_val, diff = 0, size, 1
+    text_arr = np.arange(min_val, max_val, diff)
+    X,Y = np.meshgrid(text_arr, text_arr)
+    for X_val, Y_val in zip(X.flatten(), Y.flatten()):
+        val = data[X_val, Y_val]
+        ax.text(X_val, Y_val, "%1.3f"%val, va="center", ha="center")
+
+    ax.matshow(data)
+    labs = list(corr.columns)
+    for i, lab in enumerate(labs):
+        labs[i] = lab.replace("CCQEAntiNuTool_", "d_")
+    plt.xticks(range(len(corr.columns)), labs);
+    plt.yticks(range(len(corr.columns)), labs);
+    plt.show()
+
+def main(pickle_path=None, rootfile_path=None):
     #TEST
-    dct = IO.load_obj("../temp/0.pickle")
-    df = make_clean_dataframe(None, dct)
+    if pickle_path == None:
+        pickle_path = "/home/epeters/NeutronParser/runs/deck1/temp"
+    if rootfile_path == None:
+        rootfile_path = "/home/epeters/NeutronParser/runs/deck1/split_files"
+    #Combine the pickle contents with their respective splitfiles
+    pickles = IO.get_suffix_files(pickle_path, ".pickle")
+    rootfiles = IO.get_suffix_files(rootfile_path, ".root")
+    print pickles, rootfiles
+    merge = []
+    for pickl, rfile in zip(pickles, rootfiles):
+        dct = IO.load_obj(pickl)
+        df = make_clean_dataframe(rfile, dct)
+        merge.append(df)
+
+    df = pd.concat(merge)
+    #df_all = make_clean_dataframe(None, all_data)
     pairs = make_correlation_pairs()
+    del df["CCQE"]
+    del df["mc_intType"]
     return df, pairs
     #pairs = [()]
     #correlations = pearson_correlate_cols(full_df, pairs)

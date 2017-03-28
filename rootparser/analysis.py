@@ -15,8 +15,10 @@ import IO
 import histogram as hi
 import ROOT
 
+#Some ML work
 import rootpy
 import root_numpy as rnp
+import learn
 
 #Numpy, and formatting
 import numpy as np
@@ -223,10 +225,7 @@ def testEventAccess(filename, path, report=True):
 
 
 
-
-
-
-def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
+def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=1):
     """
     Using an input filename
     Return:
@@ -262,19 +261,7 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
     #Contains tags, classifications
     #TODO: Move this to learn
     if ML:
-        ML_out = {
-                "event": [],          #!!!RELATIVE event number
-                "blob_good": [],      #bool: was the blob a 'good' fit?
-                "CCQE": [],           #bool: was this event CCQE?
-                "dphiXY": [],         #float: angle was off?
-                "dthetaXZ": [],       #float: angle was off?
-                "dthetaYZ": [],       #float: angle was off?
-                "blob_dX": [],
-                "blob_dY": [],
-                "blob_dZ": [],
-                "blob_dE": []        #float: was the energy off?
-
-        }
+        ML_out = learn.make_ML_dct(ML)
 
     #Parse input files
     with rootpy.io.root_open(filepath) as fh:
@@ -282,6 +269,8 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
             #pass the tree to the global space for access by funcs
             IO.put_subtree(pid, subtree)
             N_events = subtree.GetEntries()
+            #TODO? add an anchor event to ref original file
+            #event_base = subtree.GetLeaf("event_base").GetValue()
             if ML:
                 #A list of categories for classification/regression
                 #Default to "False"
@@ -292,7 +281,11 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
             filterlst = make_filter_list(datatype)
             #Iterate over the event and get necessary components
             for e_i in xrange(N_events):
+
+                #FIXME:
                 IO.get_subtree().GetEvent(e_i)
+                true_event = get_true_event(e_i)
+                #print "True event:", true_event
 
                 #DEBUG:
 
@@ -388,17 +381,21 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
                 #phiT on data muon vs. neutron blbo
                 phiT_blob = Mm.calculate_phi_T(recon_mu_P[1:], RVB[1:],1)
 
+                THETA_mu_blob, __ = Mm.compare_vecs(recon_mu_P[1:], RVB[1:])
+
                 #FIXME: Do we rotate the kine or make it using rotated mc?
 
 
 
                 #EVENT SUMMARY
+                #TODO: Just move these assignments up...
                 evt = EventSummary(e_i, datatype)
                 evt.n_parts = 0
                 evt.n_neutrons = n_neutrons
                 evt.n_blobs = n_blobs
                 evt.n_protons = count_protons(particle_lst)
                 evt.phiT = phiT_blob    #blob vs recon muon
+                evt.THETA_mu_blob = THETA_mu_blob
                 #mc-specific metadata
                 if datatype == 0:
                     evt.int_type = get_mc_int_type(e_i)
@@ -415,22 +412,16 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
                              }
 
                 #FILTERS
-
                 if not fi.AntiQE_like_event(evt):
                     #log.info("Event %i not CCQE-like" % e_i )
                     continue
-
-                # if not fi.phiT_good(evt):
-                #     continue
-                #print DEBUG
-
-                # log.info("Event %i particles:\n" % e_i)
-                # print "VTX", vtx
-                # print "BLOB", blob[1:]
-                # print "RVB: ", RVB[1:]
-                # print "DTHETA", Mm.compare_vecs(blob[1:], RVB[1:])
-                # print "MUON: ", mc_mu_P[1:]
-                # print "MC NEUTRON: ", mc_n_P[1:], "\n\n"
+                if not fi.phiT_good(evt):
+                     continue
+                if not fi.mu_blob_theta_good(evt):
+                    continue
+                #TODO save some computation w/ off-by-1000 error.
+                if fi.event_max(evt):
+                    break
 
                 #HISTOGRAMMING
                 #Calculations are made in histogram library for locality
@@ -453,21 +444,21 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
                         hi.make_vec_angle_hists(n, n_P)
 
                     #Measure transverse angle separation between particles
-
                     for pair in hi.ANGLE_PAIRS:
                         parts = [evt.dct.get(name) for name in pair]
                         #Transverse angular separation (phi_T)
                         phi_XY = hi.make_Dphi_hist(pair[0], pair[1], parts[0], parts[1])
                         #ThetaX, ThetaY separation
-                        theta_XZ, theta_YZ = hi.make_Dtheta_hists(pair[0], pair[1], parts[0], parts[1])
+                        theta_XZ, theta_YZ, DTHETA = hi.make_Dtheta_hists(pair[0], pair[1], parts[0], parts[1])
 
                         #Keep blob stats
-                        if ML and pair == ("n_blob", "mc_n_P"):
+                        if ML==1 and pair == ("n_blob", "mc_n_P"):
                             ML_out.get("dphiXY").append(phi_XY)
                             ML_out.get("dthetaXZ").append(theta_XZ)
                             ML_out.get("dthetaYZ").append(theta_YZ)
 
-
+                    #Blob-vertex separation
+                    rvb_norm = hi.make_rvb_hist(RVB[1:])
 
 
                 #Checking relative angles
@@ -475,18 +466,29 @@ def ParseEventsNP(tupl, hist=True, filt=True, dump=True, ML=True):
                 #MC kine-neutron vs. SINGLE mc neutron
                 dangle, separation = Mm.compare_vecs(mc_n_P[1:], mc_kine_n_P[1:])
                 dblob = mc_n_P - RVB
-                blob_good = False
+                #blob_good = False
                 #ML training set
                 if ML:
-                    ML_out.get("event").append(e_i)
-                    ML_out.get("CCQE").append(True)
-                    ML_out.get("blob_good").append(blob_good)
-                    ML_out.get("blob_dE").append(dblob[0])
-                    ML_out.get("blob_dX").append(dblob[1])
-                    ML_out.get("blob_dY").append(dblob[2])
-                    ML_out.get("blob_dZ").append(dblob[3])
-                    # ML_out.get("mc_n_i").append(mc_neutrons[0].index)
-                    # ML_out.get("mu_i").append(mu.index)
+                    ML_out.get("event").append(true_event)
+                    ML_out.get("RSG").append(get_RSG(e_i))
+                    #ML_out.get("CCQE").append(True)
+                    #ML_out.get("blob_good").append(blob_good)
+
+                    ML_out.get("blob_E").append(RVB[0])
+                    ML_out.get("rvb").append(rvb_norm)
+
+                    #Difference against MC neutron
+                    if ML == 1:
+                        ML_out.get("blob_dE").append(dblob[0])
+                        ML_out.get("blob_dX").append(dblob[1])
+                        ML_out.get("blob_dY").append(dblob[2])
+                        ML_out.get("blob_dZ").append(dblob[3])
+                    #Comparing the blob to the data muon
+                    elif ML == 2:
+                        ML_out.get("theta_mu_blob").append(THETA_mu_blob)
+                        ML_out.get("phiT_blob").append(phiT_blob)
+
+
                     #Pass along our selected neutrons
                     for k_n, vec in evt.lookup_dct.iteritems():
                         ML_out[k_n] = vec
@@ -595,6 +597,16 @@ def make_blob_neutrons(e_i, datatype):
     elif datatype == 2:
         blobs = get_blob_neutron_data(e_i)
     return blobs
+
+def get_true_event(e_i):
+    return event.fetch_val_base(e_i, "event")
+
+def get_RSG(e_i):
+    #Return a tuple of (run, subrun, gate)
+    out = []
+    for br in ["ev_run", "ev_subrun", "ev_gate"]:
+        out.append(event.fetch_val_base(e_i, run))
+    return out
 
 @versioncontrol
 def get_blob_neutron_data(e_i, blob_prefix="DATA_BLOB_PREFIX"):
